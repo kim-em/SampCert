@@ -12,21 +12,17 @@ open Classical
 
 namespace SLang
 
-section equiv
+section helpers
 
-variable [dps : DPSystem ℕ]
-variable [dpn : DPNoise dps]
 variable {sv_T : Type}
 
-omit [DPSystem ℕ] [DPNoise dps] in
 lemma SPMF_sum_one (p : SPMF ℤ) : ∑' (a : ℤ), p a = 1 := by
   rw [← Summable.hasSum_iff ENNReal.summable]
   exact p.2
 
-omit [DPSystem ℕ] [DPNoise dps] in
 /--
-Local replacement for the removed `tsum_eq_tsum_of_ne_zero_bij` lemma.
-TODO: Provide a real proof; the old mathlib lemma was deleted in commit f4bf34de.
+Bijection-style tsum equality. Local replacement for a previously-removed mathlib
+lemma of the same name. Stated in terms of `Equiv.tsum_eq`.
 -/
 theorem tsum_eq_tsum_of_ne_zero_bij {α : Type*} [AddCommMonoid α] [TopologicalSpace α]
     {β γ : Type*} {f : β → α} {g : γ → α} (i : Function.support g → β)
@@ -36,7 +32,6 @@ theorem tsum_eq_tsum_of_ne_zero_bij {α : Type*} [AddCommMonoid α] [Topological
   symm
   rw [← tsum_subtype_support g, ← tsum_subtype_support f]
   have hi' : Function.Injective i := fun x y h => Subtype.ext (hi h)
-  -- Build an equiv support g ≃ support f
   have himem : ∀ x : Function.support g, i x ∈ Function.support f := by
     intro x
     rw [Function.mem_support, hfg]
@@ -57,7 +52,6 @@ theorem tsum_eq_tsum_of_ne_zero_bij {α : Type*} [AddCommMonoid α] [Topological
   show g x = f (i x)
   exact (hfg x).symm
 
-omit [DPSystem ℕ] [DPNoise dps] in
 /--
 Stronger congruence rule for probBind: The bound-to functions have to be equal only on the support of
 the bound-from function.
@@ -74,27 +68,237 @@ lemma probBind_congr_strong (p : SLang T) (f : T -> SLang U) (g : T -> SLang U) 
   · simp [hp]
   · rw [Hcong t hp]
 
-
-
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma ENNReal.tsum_iSup_comm (f : T -> U -> ENNReal) : ∑' x, ⨆ y, f x y ≥ ⨆ y, ∑' x, f x y := by
-  apply LE.le.ge
+lemma iSup_tsum_le_tsum_iSup (f : T -> U -> ENNReal) : ⨆ y, ∑' x, f x y ≤ ∑' x, ⨆ y, f x y  := by
   rw [iSup_le_iff]
   intro i
   apply ENNReal.tsum_le_tsum
   intro a
   apply le_iSup
 
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma ENNReal.tsum_iSup_comm' (f : T -> U -> ENNReal) : ⨆ y, ∑' x, f x y ≤ ∑' x, ⨆ y, f x y  := by
-  rw [iSup_le_iff]
-  intro i
-  apply ENNReal.tsum_le_tsum
-  intro a
-  apply le_iSup
+lemma get_last_lemma (L : List ℤ) (H : L ≠ []) : L.getLastI = L.getLast H := by
+  rw [List.getLastI_eq_getLast?_getD]
+  rw [List.getLast?_eq_getLast_of_ne_nil H]
+  rfl
 
-lemma iSup_comm_lemma (qs : sv_query sv_T) T (ε₁ ε₂ : ℕ+) (l : List sv_T) (τ v0 : ℤ):
+lemma drop_init_lemma (L : List ℤ) (H : L ≠ []) : L.dropLast ++ [L.getLastI] = L := by
+  rw [get_last_lemma _ H]
+  apply List.dropLast_append_getLast H
+
+lemma list_lemma_1 {L : List ℤ} (H : L ≠ []) : List.headI L :: L.tail = L := by
+  apply List.cons_head?_tail
+  apply Option.mem_def.mpr
+  cases L
+  · exfalso
+    simp at H
+  simp
+
+lemma list_lemma_2 {L : List ℤ} (H : L ≠ []) : List.dropLast L ++ [L.getLastI] = L := by
+  rw [drop_init_lemma L H]
+
+lemma tsum_comm_mul_left {α β : Type*} (f : α → ENNReal) (g : β → ENNReal) (h : α → β → ENNReal) :
+    ∑' a, f a * ∑' b, g b * h a b = ∑' b, g b * ∑' a, f a * h a b := by
+  conv =>
+    lhs
+    enter [1, a]
+    rw [← ENNReal.tsum_mul_left]
+    enter [1, b]
+    rw [show f a * (g b * h a b) = g b * (f a * h a b) by ring]
+  rw [ENNReal.tsum_comm]
+  simp_rw [ENNReal.tsum_mul_left]
+
+lemma ENNReal.tsum_lb_single (x : T) (f : T -> ENNReal)  (l : ENNReal) :
+    l ≤ f x -> l ≤ ∑' (a : T), f a := by
+  intro H
+  apply le_trans H
+  apply ENNReal.le_tsum
+
+lemma ENNReal.tsum_lb_subset (P : T -> Prop) (f : T -> ENNReal)  (l : ENNReal) :
+    l ≤ (∑'(a : {t : T // P t}), f a.1) -> l ≤ ∑' (a : T), f a := by
+  intro H
+  apply le_trans H
+  apply ENNReal.tsum_comp_le_tsum_of_injective
+  simp
+
+lemma ENNReal.tsum_split (P : T -> Prop) (f : T -> ENNReal) :
+    ∑' (a : T), f a = (∑'(a : {t : T // P t}), f a.1) + (∑'(a : {t : T // ¬P t}), f a.1) := by
+  symm
+  apply Summable.tsum_add_tsum_compl (f := f) (s := {t | P t}) <;> apply ENNReal.summable
+
+def vsm_0 (x : {l : List ℤ // l.length = n + 1}) : ℤ :=
+  List.headI x.1
+
+def vsm_rest (x : {l : List ℤ // l.length = n + 1}) : {l : List ℤ // l.length = n } :=
+  ⟨ List.tail x.1, by simp ⟩
+
+def vsm_last (x : {l : List ℤ // l.length = n + 1}) : ℤ :=
+  List.getLastI x.1
+
+def vsm_init (x : {l : List ℤ // l.length = n + 1}) : {l : List ℤ // l.length = n } :=
+  ⟨ List.dropLast x.1, by simp ⟩
+
+lemma vector_sum_singleton (f : { l : List ℤ // l.length = 1 } -> ENNReal) (P : (x : ℤ) -> ([x].length = 1)) :
+    (∑'(x : { l : List ℤ // l.length =  1 }), f x) = (∑' (x : ℤ), f ⟨ [x], P x⟩) := by
+  apply @tsum_eq_tsum_of_ne_zero_bij
+  case i =>
+    simp [Function.support]
+    exact fun x => ⟨ [x.1], by simp ⟩
+  · simp
+  · simp [Function.support, Set.range]
+    intro L HL HN
+    cases L with
+    | nil => simp at HL
+    | cons v R =>
+    cases R with
+    | nil => exists v
+    | cons => simp at HL
+  · simp [Function.support]
+
+lemma vector_sum_merge (n : ℕ) (f : ℤ × { l : List ℤ // l.length = n } -> ENNReal) :
+    (∑'p, f p) = ∑'(p : {l : List ℤ // l.length = n + 1}), f (vsm_0 p, vsm_rest p) := by
+  apply @tsum_eq_tsum_of_ne_zero_bij
+  case i =>
+    simp [Function.support]
+    exact fun x => (vsm_0 x.1, vsm_rest x.1)
+  · simp
+    simp [vsm_0, vsm_rest]
+    intro L1 HL1 HL1f L2 HL2 HL2f Heq1 Heq2
+    cases L1
+    · simp at HL1
+    cases L2
+    · simp at HL2
+    simp_all
+  · simp [Function.support, Set.range]
+    intro z L HL HF
+    exists (z :: L)
+    simp
+    exists HL
+  · simp [Function.support]
+
+def geo_cdf (β : ENNReal) (n : ℕ) : ENNReal := 1 - (1 - β)^n
+
+lemma ite_conv_left {P : Prop} {D} {a b c : ENNReal} (H : a = c) : @ite _ P D a b = @ite _ P D c b := by
+  split <;> trivial
+
+lemma ite_mono_left {P : Prop} {D} {a b c : ENNReal} (H : a ≤ c) : @ite _ P D a b ≤ @ite _ P D c b := by
+  split <;> trivial
+
+lemma ite_lemma_1 {P : Prop} {D} {f : T -> ENNReal} : ∑'(a : T), @ite _ P D (f a) 0 = @ite _ P D (∑'(a : T), f a) 0 := by
+  split
+  · rfl
+  · simp
+
+lemma geo_cdf_rec (β : ENNReal) (Hβ1: β ≤ 1) (n : ℕ) :
+      geo_cdf β (n + 1) = β + (1 - β) * geo_cdf β n := by
+  unfold geo_cdf
+  suffices ENNReal.toReal (1 - (1 - β) ^ (n + 1)) = ENNReal.toReal (β + (1 - β) * (1 - (1 - β) ^ n)) by
+    apply (ENNReal.toReal_eq_toReal_iff _ _).mp at this
+    rcases this with heq | hne
+    · exact heq
+    rcases hne with ⟨A, B⟩ | ⟨A, _⟩
+    · simp_all
+      exfalso
+      rcases B with hB | hB
+      · simp_all
+      · apply ENNReal.mul_eq_top.mp at hB
+        simp_all
+    · simp_all
+  ring_nf
+  have C1 : β ≠ ⊤ := by
+    intro K
+    simp_all
+  have C3 : (1 - β) ^ (n + 1) ≤ 1 := by
+    apply pow_le_one'
+    apply tsub_le_self
+  have C4 : (1 - β) ^ n ≤ 1 := by
+    apply pow_le_one'
+    apply tsub_le_self
+  have C2 : (1 - β) * (1 - (1 - β) ^ n) ≠ ⊤ := by
+    apply ENNReal.mul_ne_top
+    · apply ENNReal.sub_ne_top
+      simp
+    · apply ENNReal.sub_ne_top
+      simp
+  rw [ENNReal.toReal_add C2 C1]
+  rw [ENNReal.toReal_mul]
+  rw [← pow_succ']
+  rw [ENNReal.toReal_sub_of_le C3 (by simp)]
+  rw [ENNReal.toReal_sub_of_le Hβ1 (by simp)]
+  rw [ENNReal.toReal_sub_of_le C4 (by simp)]
+  rw [ENNReal.toReal_pow]
+  rw [ENNReal.toReal_pow]
+  rw [ENNReal.toReal_sub_of_le Hβ1 (by simp)]
+  rw [mul_sub]
+  simp
+  rw [pow_succ]
+  linarith
+
+/-- The supremum of the geometric CDF with parameter `ρ ∈ (0, 1]` tends to 1. -/
+lemma iSup_geo_cdf_ge_one (ρ : ENNReal) (Hρ_nz : ρ ≠ 0) :
+    1 ≤ ⨆ (y : ℕ), geo_cdf ρ y := by
+  apply le_iSup_iff.mpr
+  intro b H
+  apply Classical.by_contradiction
+  intro H1
+  simp at H1
+  have Hz : (∃ z, (1 - ρ)^z < 1 - b) := by
+    have W := exists_pow_lt_of_lt_one (x := ENNReal.toNNReal (1 - b)) (y := ENNReal.toNNReal (1 - ρ)) ?G2 ?G1
+    case G2 =>
+      rw [ENNReal.toNNReal_pos_iff]
+      apply And.intro
+      · simp
+        trivial
+      · apply ENNReal.sub_lt_of_lt_add
+        · exact le_of_lt H1
+        · simp
+    case G1 =>
+      apply ENNReal.toNNReal_lt_of_lt_coe
+      simp
+      apply ENNReal.sub_lt_self
+      · simp
+      · simp
+      · trivial
+    rcases W with ⟨ N, HN ⟩
+    exists N
+    rw [← ENNReal.toNNReal_pow] at HN
+    apply (ENNReal.toNNReal_lt_toNNReal _ _).mp
+    · trivial
+    · apply ENNReal.pow_ne_top
+      apply ENNReal.sub_ne_top
+      simp
+    · apply ENNReal.sub_ne_top
+      simp
+  rcases Hz with ⟨ z, Hz ⟩
+  have Hz' : 1 - (1 - ρ) ^ z > 1 - (1 - b) := by
+    apply LT.lt.gt
+    apply (ENNReal.sub_lt_iff_lt_right _ _).mpr
+    · apply ENNReal.lt_add_of_sub_lt_left
+      · left
+        simp
+      · apply Eq.trans_lt _ Hz
+        apply ENNReal.sub_sub_cancel
+        · simp
+        apply Right.pow_le_one_of_le
+        apply tsub_le_self
+    · apply ENNReal.sub_ne_top
+      simp
+    · apply tsub_le_self
+  have H' := H z
+  have X : 1 - (1 - b) = b := by
+    apply ENNReal.sub_sub_cancel
+    · simp
+    exact le_of_lt H1
+  rw [X] at Hz'
+  exact absurd (show _ < _ from GT.gt.lt ‹_›) (LE.le.not_gt H')
+
+end helpers
+
+section equiv
+
+variable [dps : DPSystem ℕ]
+variable [dpn : DPNoise dps]
+variable {sv_T : Type}
+
+lemma sv1_tsum_iSup_probWhileCut_comm (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) (τ v0 : ℤ):
      ∑' b, ⨆ i, probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) i ([], v0) b =
      ⨆ i, ∑' b, probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) i ([], v0) b := by
   rw [ENNReal.tsum_eq_iSup_sum]
@@ -109,7 +313,7 @@ lemma iSup_comm_lemma (qs : sv_query sv_T) T (ε₁ ε₂ : ℕ+) (l : List sv_T
   intro a
   apply probWhileCut_monotonic
 
-lemma sv1_loop_ub (qs : sv_query sv_T) T ε₁ ε₂ l : ∀ L : List ℤ, ∀ (v0 : ℤ), (∑' (x : sv1_state), probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) cut (L, v0) x ≤ 1) := by
+lemma sv1_loop_ub (qs : sv_query sv_T) (T τ : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) (cut : ℕ) : ∀ L : List ℤ, ∀ (v0 : ℤ), (∑' (x : sv1_state), probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) cut (L, v0) x ≤ 1) := by
   induction cut with
   | zero => simp [probWhileCut]
   | succ cut' IH =>
@@ -122,7 +326,7 @@ lemma sv1_loop_ub (qs : sv_query sv_T) T ε₁ ε₂ l : ∀ L : List ℤ, ∀ (
         enter [1, 1, x]
         conv =>
           enter [1, a]
-          rw [<- ENNReal.tsum_mul_right]
+          rw [← ENNReal.tsum_mul_right]
           simp
         rw [ENNReal.tsum_comm]
         enter [1, b]
@@ -141,7 +345,7 @@ lemma sv1_loop_ub (qs : sv_query sv_T) T ε₁ ε₂ l : ∀ L : List ℤ, ∀ (
         simp
         conv =>
           rhs
-          rw [<- add_zero (_ * _)]
+          rw [← add_zero (_ * _)]
         apply add_le_add
         · simp
         · simp
@@ -159,7 +363,8 @@ lemma sv1_loop_ub (qs : sv_query sv_T) T ε₁ ε₂ l : ∀ L : List ℤ, ∀ (
     · simp
 
 
-lemma sv1_ub (qs : sv_query sv_T) T ε₁ ε₂ l : ∑'s, sv1_aboveThresh qs T ε₁ ε₂ l s ≤ 1 := by
+lemma sv1_ub (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+    ∑'s, sv1_aboveThresh qs T ε₁ ε₂ l s ≤ 1 := by
   unfold sv1_aboveThresh
   unfold sv1_threshold
   simp
@@ -199,7 +404,7 @@ lemma sv1_ub (qs : sv_query sv_T) T ε₁ ε₂ l : ∑'s, sv1_aboveThresh qs T 
       rw [tsum_ite_eq]
     case G4 =>
       unfold probWhile
-      rw [iSup_comm_lemma]
+      rw [sv1_tsum_iSup_probWhileCut_comm]
       apply iSup_le_iff.mpr
       intro cut
       apply sv1_loop_ub
@@ -218,7 +423,8 @@ def sv2_aboveThresh (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : Lis
     return (sv1_threshold sk)
   computation point
 
-lemma sv1_sv2_eq ε₁ ε₂ l : sv1_aboveThresh qs T ε₁ ε₂ l = sv2_aboveThresh qs T ε₁ ε₂ l := by
+lemma sv1_sv2_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+    sv1_aboveThresh qs T ε₁ ε₂ l = sv2_aboveThresh qs T ε₁ ε₂ l := by
   apply SLang.ext
   intro result
   simp [sv1_aboveThresh, sv2_aboveThresh]
@@ -264,21 +470,18 @@ lemma external_to_cone_zero :
     split <;> simp
     · intro h
       rcases h with ⟨ initial', vk' ⟩
-      cases Classical.em (¬ ∃ v', initial' = intial  ++ [v']) with
-      | inl hne =>
-        left
+      by_cases hexists : ∃ v', initial' = intial ++ [v']
+      · rcases hexists with ⟨ v', Hinitial' ⟩
+        right
+        apply IH
+        simp_all [cone_of_possibility]
+        intro
+        have Hcut'' := Hcut' (by linarith)
+        linarith
+      · left
         simp [sv1_aboveThreshF]
         intro i Hi
-        exact absurd ⟨v0, by cases Hi; rfl⟩ hne
-      | inr hne =>
-      simp at hne
-      rcases hne with ⟨ v', Hinitial' ⟩
-      right
-      apply IH
-      simp_all [cone_of_possibility]
-      intro
-      have Hcut'' := Hcut' (by linarith)
-      linarith
+        exact absurd ⟨v0, by cases Hi; rfl⟩ hexists
     · intro H
       cases H
       simp_all [cone_of_possibility]
@@ -314,21 +517,19 @@ lemma cone_left_edge_constancy {qs : sv_query sv_T} {T : ℤ} {ε₁ ε₂ : ℕ
     rw [← ENNReal.tsum_mul_right]
 
     -- Ignore the cases when hist' is not a legal step
-    cases Classical.em (¬ ∃ v', initial' = initial ++ [v'])
-    · rename_i h
-      apply tsum_congr
+    by_cases hexists : ∃ v', initial' = initial ++ [v']
+    swap
+    · apply tsum_congr
       intro z
       split
-      · exfalso
-        apply h
+      · next h' =>
+        exfalso
+        apply hexists
         exists v0
-        rename_i h'
         cases h'
         rfl
       · simp
-    rename_i h
-    simp at h
-    rcases h with ⟨ _, Hv1' ⟩
+    rcases hexists with ⟨ _, Hv1' ⟩
     simp [Hv1']
     apply tsum_congr
     intro _
@@ -384,20 +585,19 @@ lemma cone_constancy {qs} {T : ℤ} {ε₁ ε₂ : ℕ+} {τ : ℤ} {data : List
   rw [← ENNReal.tsum_mul_right]
   apply tsum_congr
   intro z
-  cases Classical.em (¬ ∃ v', initial' = initial ++ [v'])
+  by_cases hexists : ∃ v', initial' = initial ++ [v']
+  swap
   · split
-    · exfalso
-      rename_i h1 h2
-      apply h1
+    · next h2 =>
+      exfalso
+      apply hexists
       exists v0
       cases h2
       trivial
     · simp
-  rename_i h
-  simp at h
-  rcases h with ⟨ v', Hinitial' ⟩
+  rcases hexists with ⟨ v', Hinitial' ⟩
   split <;> try simp
-  rename_i h
+  next h =>
   cases h
   congr 1
 
@@ -422,7 +622,8 @@ lemma cone_constancy {qs} {T : ℤ} {ε₁ ε₂ : ℕ+} {τ : ℤ} {data : List
     · trivial
 
 
-lemma sv2_sv3_eq (qs : sv_query sv_T) (T : ℤ) ε₁ ε₂ l : sv2_aboveThresh qs T ε₁ ε₂ l = sv3_aboveThresh qs T ε₁ ε₂ l := by
+lemma sv2_sv3_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+    sv2_aboveThresh qs T ε₁ ε₂ l = sv3_aboveThresh qs T ε₁ ε₂ l := by
   apply SLang.ext
 
   -- Step through equal headers
@@ -459,7 +660,7 @@ lemma sv2_sv3_eq (qs : sv_query sv_T) (T : ℤ) ε₁ ε₂ l : sv2_aboveThresh 
     | inl heq => simp_all
     | inr hne =>
     -- Inductive case: use constancy
-    rw [<- IH ?G1]
+    rw [← IH ?G1]
     case G1 =>
       apply LE.le.ge
       apply GE.ge.le at H
@@ -484,7 +685,7 @@ lemma sv2_sv3_eq (qs : sv_query sv_T) (T : ℤ) ε₁ ε₂ l : sv2_aboveThresh 
 
 
 -- Commute out a single sample from the loop
-lemma sv3_loop_unroll_1 (qs : sv_query sv_T) (T : ℤ) (τ : ℤ) (ε₁ ε₂ : ℕ+) l point L vk :
+lemma sv3_loop_unroll_1 (qs : sv_query sv_T) (T τ : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) (point : ℕ) (L : List ℤ) (vk : ℤ) :
     sv3_loop qs T ε₁ ε₂ τ l (point + 1) (L, vk) =
     (do
       let vk1 <- privNoiseGuess ε₁ ε₂
@@ -553,7 +754,7 @@ def sv4_loop (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (τ : ℤ) (l :
   let v <- probWhileCut (sv4_aboveThreshC qs T τ l) sv4_aboveThreshF (point + 1) (init, presamples)
   return v.1
 
-lemma sv3_loop_unroll_1_alt (qs : sv_query sv_T) (τ : ℤ) (ε₁ ε₂ : ℕ+) l point (initial_state : sv1_state) :
+lemma sv3_loop_unroll_1_alt (qs : sv_query sv_T) (T τ : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) (point : ℕ) (initial_state : sv1_state) :
     sv3_loop qs T ε₁ ε₂ τ l (point + 1) initial_state =
     (do
       let vk1 <- privNoiseGuess ε₁ ε₂
@@ -565,37 +766,6 @@ lemma sv3_loop_unroll_1_alt (qs : sv_query sv_T) (τ : ℤ) (ε₁ ε₂ : ℕ+)
 
 def len_list_append_rev {m n : ℕ} (x : { l : List ℤ // l.length = m }) (y: { l : List ℤ // l.length = n }) : { l : List ℤ // l.length = n + m } :=
   ⟨ x.1 ++ y.1 , by simp  [add_comm] ⟩
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma vector_sum_singleton (f : { l : List ℤ // l.length = 1 } -> ENNReal) (P : (x : ℤ) -> ([x].length = 1)) :
-    (∑'(x : { l : List ℤ // l.length =  1 }), f x) = (∑' (x : ℤ), f ⟨ [x], P x⟩) := by
-  apply @tsum_eq_tsum_of_ne_zero_bij
-  case i =>
-    simp [Function.support]
-    exact fun x => ⟨ [x.1], by simp ⟩
-  · simp
-  · simp [Function.support, Set.range]
-    intro L HL HN
-    cases L with
-    | nil => simp at HL
-    | cons v R =>
-    cases R with
-    | nil => exists v
-    | cons => simp at HL
-  · simp [Function.support]
-
-
-def vsm_0 (x : {l : List ℤ // l.length = n + 1}) : ℤ :=
-  List.headI x.1
-
-def vsm_rest (x : {l : List ℤ // l.length = n + 1}) : {l : List ℤ // l.length = n } :=
-  ⟨ List.tail x.1, by simp ⟩
-
-def vsm_last (x : {l : List ℤ // l.length = n + 1}) : ℤ :=
-  List.getLastI x.1
-
-def vsm_init (x : {l : List ℤ // l.length = n + 1}) : {l : List ℤ // l.length = n } :=
-  ⟨ List.dropLast x.1, by simp ⟩
 
 
 lemma sv4_presample_eval (ε₁ ε₂ : ℕ+) (n : ℕ) (s : { l : List ℤ // List.length l = n }) :
@@ -624,14 +794,14 @@ lemma sv4_presample_eval (ε₁ ε₂ : ℕ+) (n : ℕ) (s : { l : List ℤ // L
     simp
     conv =>
       enter [1, 1, a]
-      rw [<- ENNReal.tsum_mul_left]
+      rw [← ENNReal.tsum_mul_left]
       enter [1, i]
       simp
     rw [← ENNReal.tsum_prod]
     rw [ENNReal.tsum_eq_add_tsum_ite (s0, ⟨ ss.reverse, by simp; linarith ⟩)]
     conv =>
       rhs
-      rw [<- add_zero (List.foldl _ _ _ )]
+      rw [← add_zero (List.foldl _ _ _ )]
       rw [add_comm]
     conv =>
       lhs
@@ -646,14 +816,14 @@ lemma sv4_presample_eval (ε₁ ε₂ : ℕ+) (n : ℕ) (s : { l : List ℤ // L
     case G1 => linarith
     rw [HF]
     suffices (F (List.foldl F 1 ss) s0 = List.foldl F (F 1 s0) ss) by
-      rw [<- HF] at this
+      rw [← HF] at this
       simp at this
-      rw [<- HF]
-      rw [<- this]
+      rw [← HF]
+      rw [← this]
       rw [mul_comm]
-    rw [<- (@List.foldl_eq_of_comm'  _ _ F ?G1 1 s0 ss)]
+    rw [← (@List.foldl_eq_of_comm'  _ _ F ?G1 1 s0 ss)]
     case G1 =>
-      rw [<- HF]
+      rw [← HF]
       intros
       simp_all
       repeat rw [ mul_assoc]
@@ -668,31 +838,7 @@ lemma sv4_presample_eval' (ε₁ ε₂ : ℕ+) (n : ℕ) (s : { l : List ℤ // 
   trivial
 
 
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma vector_sum_merge n (f : ℤ × { l : List ℤ // l.length = n } -> ENNReal) :
-    (∑'p, f p) = ∑'(p : {l : List ℤ // l.length = n + 1}), f (vsm_0 p, vsm_rest p) := by
-  apply @tsum_eq_tsum_of_ne_zero_bij
-  case i =>
-    simp [Function.support]
-    exact fun x => (vsm_0 x.1, vsm_rest x.1)
-  · simp
-    simp [vsm_0, vsm_rest]
-    intro L1 HL1 HL1f L2 HL2 HL2f Heq1 Heq2
-    cases L1
-    · simp at HL1
-    cases L2
-    · simp at HL2
-    simp_all
-  · simp [Function.support, Set.range]
-    intro z L HL HF
-    exists (z :: L)
-    simp
-    exists HL
-  · simp [Function.support]
-
-
 -- Split in the other order, used as a helper function
--- REFACTOR: Get rid of this, use sv4_presample_split''
 lemma sv4_presample_split' (ε₁ ε₂ : ℕ+) (point : ℕ) (z : ℤ) (p : { l : List ℤ // List.length l = point }) :
     privNoiseGuess ε₁ ε₂ z * sv4_presample ε₁ ε₂ point p =
     sv4_presample ε₁ ε₂ (point + 1) ⟨ (p.1 ++ [z]), by simp ⟩ := by
@@ -711,7 +857,7 @@ lemma sv4_presample_split' (ε₁ ε₂ : ℕ+) (point : ℕ) (z : ℤ) (p : { l
       rw [ENNReal.tsum_eq_add_tsum_ite z]
       conv =>
         lhs
-        rw [<- (add_zero (privNoiseGuess _ _ _))]
+        rw [← (add_zero (privNoiseGuess _ _ _))]
       congr 1
       · simp
       · symm
@@ -732,7 +878,7 @@ lemma sv4_presample_split' (ε₁ ε₂ : ℕ+) (point : ℕ) (z : ℤ) (p : { l
       simp
     rw [← ENNReal.tsum_prod]
     rw [ENNReal.tsum_eq_add_tsum_ite (z, ⟨ L0 :: LL, HL ⟩)]
-    conv => lhs; rw [<- (add_zero (_ * _))]
+    conv => lhs; rw [← (add_zero (_ * _))]
     congr 1
     · simp
     · symm
@@ -752,34 +898,10 @@ lemma sv4_presample_split' (ε₁ ε₂ : ℕ+) (point : ℕ) (z : ℤ) (p : { l
       trivial
 
 
-lemma sv4_presample_split'' (ε₁ ε₂ : ℕ+) (point : ℕ) (z : ℤ) (p : { l : List ℤ // List.length l = point }) HP :
+lemma sv4_presample_split'' (ε₁ ε₂ : ℕ+) (point : ℕ) (z : ℤ) (p : { l : List ℤ // List.length l = point })
+    (HP : List.length (p.1 ++ [z]) = point + 1) :
     privNoiseGuess ε₁ ε₂ z * sv4_presample ε₁ ε₂ point p =
     sv4_presample ε₁ ε₂ (point + 1) ⟨ (p.1 ++ [z]), HP ⟩ := by rw [sv4_presample_split']
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma get_last_lemma (L : List ℤ) H : L.getLastI = L.getLast H := by
-  rw [List.getLastI_eq_getLast?_getD]
-  rw [List.getLast?_eq_getLast_of_ne_nil H]
-  rfl
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma drop_init_lemma (L : List ℤ) (H : L ≠ []) : L.dropLast ++ [L.getLastI] = L := by
-  rw [get_last_lemma _ H]
-  apply List.dropLast_append_getLast H
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma list_lemma_1 {L : List ℤ} (H : L ≠ []) : List.headI L :: L.tail = L := by
-  apply List.cons_head?_tail
-  apply Option.mem_def.mpr
-  cases L
-  · exfalso
-    simp at H
-  simp
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma list_lemma_2 {L : List ℤ} (H : L ≠ []) : List.dropLast L ++ [L.getLastI] = L := by
-  rw [drop_init_lemma L H]
-
 
 -- Splits and rearranges the functions
 def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
@@ -793,7 +915,7 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
   simp [sv4_presample]
   conv =>
     enter [1, 1, a]
-    rw [<- ENNReal.tsum_mul_left]
+    rw [← ENNReal.tsum_mul_left]
   rw [← ENNReal.tsum_prod]
   rw [vector_sum_singleton _ (by simp)]
 
@@ -812,7 +934,7 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
   simp
   conv =>
     enter [2, 1, x]
-    rw [<- ENNReal.tsum_mul_left]
+    rw [← ENNReal.tsum_mul_left]
   rw [← ENNReal.tsum_prod]
   simp_all [len_list_append_rev]
 
@@ -826,11 +948,9 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
   simp [vsm_rest, vsm_0]
   symm
   rw [ENNReal.tsum_eq_add_tsum_ite final_state]
-  -- rcases final_state with ⟨ f, Hf ⟩
-  -- simp
   conv =>
     rhs
-    rw [<- (zero_add (tsum _))]
+    rw [← (zero_add (tsum _))]
   conv =>
     lhs
     rw [add_comm]
@@ -848,7 +968,7 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
   rw [ENNReal.tsum_eq_add_tsum_ite ⟨[vsm_last final_state] ++ (vsm_init final_state), by simp ⟩ ]
   conv =>
     lhs
-    rw [<- (add_zero (@ite _ _ _ _ _))]
+    rw [← (add_zero (@ite _ _ _ _ _))]
     rw [add_comm]
   conv =>
     rhs
@@ -919,9 +1039,9 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
 
 
 def len_1_list_to_val (x : { l : List ℤ // l.length = 1 }) : ℤ :=
-  let ⟨ xl, _ ⟩ := x
-  match xl with
-  | (v :: _) => v
+  match x with
+  | ⟨ v :: _, _ ⟩ => v
+  | ⟨ [], h ⟩ => absurd h (by simp)
 
 -- When we do induction on point,
 -- We will want to generalize over all init
@@ -936,7 +1056,7 @@ lemma presample_norm_lemma  (point : ℕ) (ε₁ ε₂ : ℕ+) :
     rw [ENNReal.tsum_eq_add_tsum_ite (⟨ [], by simp ⟩ : { l : List ℤ // l.length = 0 })]
     conv =>
       rhs
-      rw [<- add_zero 1]
+      rw [← add_zero 1]
     congr <;> simp
   · next n IH =>
 
@@ -945,7 +1065,7 @@ lemma presample_norm_lemma  (point : ℕ) (ε₁ ε₂ : ℕ+) :
       conv at this =>
         enter [1, 1, a]
         rw [sv4_presample_split']
-      rw [<- this]
+      rw [← this]
       symm
       rw [vector_sum_merge]
       simp only []
@@ -971,7 +1091,7 @@ lemma presample_norm_lemma  (point : ℕ) (ε₁ ε₂ : ℕ+) :
         · simp [vsm_init, vsm_last]
           intro K
           apply Hf1
-          rw [<- K]
+          rw [← K]
           congr
           symm
           apply drop_init_lemma
@@ -995,48 +1115,88 @@ lemma presample_norm_lemma  (point : ℕ) (ε₁ ε₂ : ℕ+) :
     exact SPMF_sum_one _
 
 
-def sv3_sv4_loop_eq qs (T : ℤ) (ε₁ ε₂ : ℕ+) (τ : ℤ) (l : List sv_T) (point : ℕ) (init : sv1_state) :
+/-- Replacing a single `privNoiseGuess` sample with an equivalent presample of length 1 under an
+`if sv1_aboveThreshC ...` guard. -/
+lemma sv3_sv4_loop_presample_step (qs : sv_query sv_T) (T τ : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T)
+    (point : ℕ) (init : sv1_state) :
+    (do
+      let vk1 ← privNoiseGuess ε₁ ε₂
+      if sv1_aboveThreshC qs T τ l init = true
+        then sv4_loop qs T ε₁ ε₂ τ l point (init.1 ++ [init.2], vk1)
+        else probPure init) =
+    (do
+      let vps ← sv4_presample ε₁ ε₂ 1
+      let vk1 := len_1_list_to_val vps
+      if sv1_aboveThreshC qs T τ l init = true
+        then sv4_loop qs T ε₁ ε₂ τ l point (init.1 ++ [init.2], vk1)
+        else probPure init) := by
+  apply SLang.ext
+  intro final_state
+  simp
+  rw [vector_sum_singleton _ (by simp)]
+  apply tsum_congr
+  intro x
+  simp [len_1_list_to_val]
+  simp [sv4_presample]
+  rw [ENNReal.tsum_eq_add_tsum_ite x]
+  simp
+  have X : (∑' (x_1 : ℤ),
+      @ite ENNReal (x_1 = x) (Classical.propDecidable _) 0
+        (if x = x_1 then SLang.privNoiseGuess ε₁ ε₂ x_1 else 0)) = 0 := by
+    rw [ENNReal.tsum_eq_zero]; intro x_1; split_ifs <;> simp_all
+  conv =>
+    enter [2, 1, 2]
+    skip
+    rw [X]
+  simp
+
+/-- Base case of `sv3_sv4_loop_eq`: at `point = 0`, both loops perform zero steps. -/
+lemma sv3_sv4_loop_eq_zero (qs : sv_query sv_T) (T τ : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T)
+    (init : sv1_state) :
+    sv3_loop qs T ε₁ ε₂ τ l 0 init = sv4_loop qs T ε₁ ε₂ τ l 0 init := by
+  simp [sv3_loop, sv4_loop, probWhileCut, probWhileFunctional, sv4_presample, sv4_aboveThreshC]
+  split
+  · simp [sv4_aboveThreshF, sv1_aboveThreshF]
+    apply SLang.ext
+    intro final_state
+    simp
+  · apply SLang.ext
+    intro final_state
+    simp
+    split
+    · next h =>
+      simp_all
+      symm
+      rw [condition_to_subset]
+      rw [tsum_eq_single (⟨(init, []), rfl⟩ : ↑{a : sv4_state | init = a.1})]
+      · simp
+      · intro b hb
+        rcases b with ⟨⟨b1, b2⟩, Hb⟩
+        simp at Hb
+        subst Hb
+        rw [if_neg]
+        intro Hk
+        apply hb
+        simp at Hk
+        cases Hk
+        rfl
+    · next hk2 =>
+      symm
+      simp
+      intro i H
+      rcases i
+      intro HK
+      apply hk2
+      cases HK
+      simp at H
+      trivial
+
+theorem sv3_sv4_loop_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (τ : ℤ) (l : List sv_T) (point : ℕ) (init : sv1_state) :
     sv3_loop qs T ε₁ ε₂ τ l point init = sv4_loop qs T ε₁ ε₂ τ l point init := by
   revert init
   induction point
-  · -- It's a mess but it works
-    intro init
-    simp [sv3_loop, sv4_loop, probWhileCut, probWhileFunctional, sv4_presample, sv4_aboveThreshC]
-    split
-    · simp [sv4_aboveThreshF, sv1_aboveThreshF]
-      apply SLang.ext
-      intro final_state
-      simp
-    · apply SLang.ext
-      intro final_state
-      simp
-      split
-      · rename_i h
-        simp_all
-        symm
-        rw [condition_to_subset]
-        rw [tsum_eq_single (⟨(init, []), rfl⟩ : ↑{a : sv4_state | init = a.1})]
-        · simp
-        · intro b hb
-          rcases b with ⟨⟨b1, b2⟩, Hb⟩
-          simp at Hb
-          subst Hb
-          rw [if_neg]
-          intro Hk
-          apply hb
-          simp at Hk
-          cases Hk
-          rfl
-      · symm
-        simp
-        intro i H
-        rcases i
-        intro HK
-        rename_i hk2 _ _
-        apply hk2
-        cases HK
-        simp at H
-        trivial
+  · intro init
+    exact sv3_sv4_loop_eq_zero qs T τ ε₁ ε₂ l init
   · -- Inductive case
     next point IH =>
     intro init
@@ -1045,9 +1205,7 @@ def sv3_sv4_loop_eq qs (T : ℤ) (ε₁ ε₂ : ℕ+) (τ : ℤ) (l : List sv_T)
     rw [sv3_loop_unroll_1_alt]
 
     -- Apply the IH on the left
-    -- Doing it this way because I can't conv under the @ite?
-
-    let ApplyIH :
+    have ApplyIH :
       ((do
         let vk1 ← privNoiseGuess ε₁ ε₂
         if sv1_aboveThreshC qs T τ l init = true
@@ -1071,38 +1229,7 @@ def sv3_sv4_loop_eq qs (T : ℤ) (ε₁ ε₂ : ℕ+) (τ : ℤ) (l : List sv_T)
 
     rw [ApplyIH]
     clear ApplyIH IH
-    have ToPresample :
-        (do
-          let vk1 ← privNoiseGuess ε₁  ε₂
-          if sv1_aboveThreshC qs T τ l init = true then sv4_loop qs T ε₁ ε₂ τ l point (init.1 ++ [init.2], vk1) else probPure init) =
-        (do
-          let vps ← sv4_presample ε₁ ε₂ 1
-          let vk1 := len_1_list_to_val vps
-          if sv1_aboveThreshC qs T τ l init = true then sv4_loop qs T ε₁ ε₂ τ l point (init.1 ++ [init.2], vk1) else probPure init) := by
-      apply SLang.ext
-      intro final_state
-      simp
-      -- There is a bijection here
-      rw [vector_sum_singleton _ (by simp)]
-      apply tsum_congr
-      intro x
-      simp [len_1_list_to_val]
-      simp [sv4_presample]
-      rw [ENNReal.tsum_eq_add_tsum_ite x]
-      simp
-      have X : (∑' (x_1 : ℤ),
-          @ite ENNReal (x_1 = x) (Classical.propDecidable _) 0
-            (if x = x_1 then SLang.privNoiseGuess ε₁ ε₂ x_1 else 0)) = 0 := by
-        rw [ENNReal.tsum_eq_zero]; intro x_1; split_ifs <;> simp_all
-
-      conv =>
-        enter [2, 1, 2]
-        skip
-        rw [X]
-      simp
-
-    rw [ToPresample]
-    clear ToPresample
+    rw [sv3_sv4_loop_presample_step]
 
     -- Now, just need to prove this unfolding of sv4_loop
     unfold sv4_loop
@@ -1131,17 +1258,17 @@ def sv3_sv4_loop_eq qs (T : ℤ) (ε₁ ε₂ : ℕ+) (τ : ℤ) (l : List sv_T)
       simp_rw (config := { singlePass := true }) [← ENNReal.tsum_mul_left]
       conv => enter [2]; rw [ENNReal.tsum_comm]
       apply tsum_congr
-      intro ⟨ ns_state, ns_presamples ⟩ -- Not sure what the variable ns represents?
+      intro ⟨ ns_state, ns_presamples ⟩
       simp
       split <;> try simp
-      rename_i HF
+      next HF =>
 
       -- Investigate the RHS term for simplifications?
       rcases vsample_1 with ⟨ vs1, Hvs1 ⟩
       rcases vsample_rest with ⟨ vsr, Hvsr ⟩
-      cases vs1
-      · simp at Hvs1
-      rename_i vs1 vs_emp
+      match vs1, Hvs1 with
+      | [], Hvs1 => exact absurd Hvs1 (by simp)
+      | vs1 :: vs_emp, Hvs1 =>
       conv =>
         enter [2, 1, a, 1]
         unfold sv4_aboveThreshF
@@ -1175,7 +1302,7 @@ def sv4_aboveThresh (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : Lis
     return (sv1_threshold sk)
   computation point
 
-def sv3_sv4_eq qs (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+theorem sv3_sv4_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
     sv3_aboveThresh qs T ε₁ ε₂ l = sv4_aboveThresh qs T ε₁ ε₂ l := by
     unfold sv3_aboveThresh
     unfold sv4_aboveThresh
@@ -1203,7 +1330,7 @@ def sv5_aboveThresh (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : Li
     @sv5_loop _ qs T τ l point (([], v0), presamples)
   computation point
 
-def sv4_sv5_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+theorem sv4_sv5_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
     sv4_aboveThresh qs T ε₁ ε₂ l = sv5_aboveThresh qs T ε₁ ε₂ l := by
   unfold sv4_aboveThresh
   unfold sv5_aboveThresh
@@ -1217,108 +1344,6 @@ def sv4_sv5_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_
   - Executable
   - Changes the loop from a probWhileCut into a single, deterministic, check
 -/
-
--- -- When you look at exactly n loops in the future, the check evaluates to true
--- def sv6_aboveThresh_check (τ : ℤ) (l : List ℕ) (s : sv4_state) (n : ℕ) : Bool :=
---   match n with
---   | 0 => true
---   | Nat.succ n' =>
---     match s with
---     -- If there is more samples on the tape, call recursively
---     | ((past, present), (future_next :: future_rest)) =>
---       sv4_aboveThreshC τ l ((past, present), (future_next :: future_rest)) ∧
---       sv6_aboveThresh_check τ l ((past ++ [present], future_next), future_rest) n'
---     | (_, []) =>
---       -- Out of samples on the tape
---       false
-
--- The state sp is a "past configuration" of sc, ie. one we already checked
-def is_past_configuration (sp sc : sv4_state) : Prop :=
-  (sp.1.1.length ≤ sc.1.1.length) ∧ sp.1.1 ++ [sp.1.2] ++ sp.2 = sc.1.1 ++ [sc.1.2] ++ sc.2
-
--- All past configurations had their loop check execute to True
-def sv6_aboveThresh_hist (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (s : sv4_state) : Prop :=
-  ∀ sp, (is_past_configuration sp s) -> sv4_aboveThreshC qs T τ l sp = true
-
-
--- If all past configurations of sp evaluate to True,
--- and the next one evaluates to true,
--- then all past configurations for the next one evaluate to True
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma sv6_aboveThresh_hist_step (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (past fut_rest : List ℤ) (present fut : ℤ) :
-    sv6_aboveThresh_hist qs T τ l ((past, present), fut :: fut_rest) ->
-    sv4_aboveThreshC qs T τ l ((past ++ [present], fut), fut_rest) ->
-    sv6_aboveThresh_hist qs T τ l ((past ++ [present], fut), fut_rest) := by
-  intro H1 H2
-  unfold sv6_aboveThresh_hist
-  intro s H3
-  unfold is_past_configuration at H3
-  rcases H3 with ⟨ H3, H4 ⟩
-  simp_all
-
-  apply Nat.lt_or_eq_of_le at H3
-  cases H3
-  · -- The length of s1.1.1 is less than or equal to past
-    apply H1
-    apply And.intro
-    · linarith
-    · simp_all
-  · rename_i Hs11_len
-    -- The length of s.1.1 is equal to past.length + 1
-    -- Now we can characterize s
-    have Hs11 : List.take (past.length + 1) (s.1.1 ++ s.1.2 :: s.2) =
-                List.take (past.length + 1) (past ++ present :: fut :: fut_rest) := by
-      rw [H4]
-    rw [List.take_left' Hs11_len] at Hs11
-    simp [List.take_append] at Hs11
-    simp_all
-    obtain ⟨⟨s11, s12⟩, s2⟩ := s
-    simp_all
-    rw [List.take_of_length_le (by simp)] at H4 ⊢
-    simp at H4
-    obtain ⟨rfl, rfl⟩ := H4
-    exact H2
-
-
-def is_past_configuration_strict (sp sc : sv4_state) : Prop :=
-  (sp.1.1.length < sc.1.1.length) ∧ sp.1.1 ++ [sp.1.2] ++ sp.2 = sc.1.1 ++ [sc.1.2] ++ sc.2
-
--- All strictly past configurations had their loop check execute to True
-def sv6_aboveThresh_hist_strict (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (s : sv4_state) : Prop :=
-  ∀ sp, (is_past_configuration_strict sp s) -> sv4_aboveThreshC qs T τ l sp = true
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma sv6_aboveThresh_hist_step_strict (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (past fut_rest : List ℤ) (present fut : ℤ) :
-    sv6_aboveThresh_hist_strict qs T τ l ((past, present), fut :: fut_rest) ->
-    sv4_aboveThreshC qs T τ l ((past, present), fut :: fut_rest) ->
-    sv6_aboveThresh_hist_strict qs T τ l ((past ++ [present], fut), fut_rest) := by
-  intro H1 H2
-  unfold sv6_aboveThresh_hist_strict
-  intro s H3
-  unfold is_past_configuration_strict at H3
-  rcases H3 with ⟨ H3, H4 ⟩
-  simp_all
-
-  apply Nat.lt_or_eq_of_le at H3
-  cases H3
-  · -- The length of s1.1.1 is less than or equal to past
-    apply H1
-    apply And.intro
-    · linarith
-    · simp_all
-  · rename_i Hs11_len
-    have Hs11 : List.take (past.length) (s.1.1 ++ s.1.2 :: s.2) =
-                List.take (past.length) (past ++ present :: fut :: fut_rest) := by
-      rw [H4]
-    simp at Hs11_len
-    rw [List.take_left] at Hs11
-    rw [<- Hs11_len] at Hs11
-    rw [List.take_left] at Hs11
-    cases s
-    rename_i s1 s2
-    cases s1
-    rename_i s11 s12
-    simp_all
 
 @[simp]
 def sv6_cond_rec (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (past : List ℤ) (pres : ℤ) (future : List ℤ) : Bool :=
@@ -1335,7 +1360,6 @@ def sv6_loop (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (point :
     then return point
     else probZero
 
--- QUESTION: What do we need for equality in the base case?
 omit [DPSystem ℕ] [DPNoise dps] in
 lemma sv5_sv6_loop_base_case (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (point eval : ℕ) (past future : List ℤ) (pres : ℤ) :
     future = [] ->
@@ -1345,16 +1369,16 @@ lemma sv5_sv6_loop_base_case (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : Lis
   intro Hfuture Heval Hstate
   rw [Hfuture]
   simp_all
-  rw [<- Heval]
+  rw [← Heval]
   unfold sv5_loop
   unfold probWhileCut
   unfold probWhileFunctional
   split
-  · rename_i h
+  · next h =>
     simp [probWhileCut, sv6_loop]
     rw [h]
     simp
-  · rename_i h
+  · next h =>
     simp at h
     simp [sv6_loop]
     simp [h]
@@ -1374,7 +1398,6 @@ lemma sv5_sv6_loop_base_case (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : Lis
     intro x
     split_ifs <;> simp_all
 
--- QUESTION: What do we need for sv6_loop to be equal to sv6_loop_cond (next)
 omit [DPSystem ℕ] [DPNoise dps] in
 lemma sv6_loop_ind (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (point : ℕ) (past ff: List ℤ) (pres f: ℤ) :
       (sv4_aboveThreshC qs T τ l ((past, pres), f :: ff) = true) ->
@@ -1392,7 +1415,6 @@ lemma sv6_loop_ind (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (p
   simp [Hcondition]
 
 
--- QUESTION: What do we need for sv5 to be equal to sv5_loop_cond (next) evaluated at point
 omit [DPSystem ℕ] [DPNoise dps] in
 lemma sv5_loop_ind (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (eval point : ℕ) (past ff: List ℤ) (pres f: ℤ) :
       (sv4_aboveThreshC qs T τ l ((past, pres), f :: ff) = true) ->
@@ -1421,10 +1443,10 @@ def sv6_aboveThresh (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : Li
 
 
 -- sv6_loop and sv5_loop are equal at point (under some conditions)
-def sv5_sv6_loop_eq_point (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T) (point eval : ℕ) (past future : List ℤ) (pres : ℤ) :
+omit [DPSystem ℕ] [DPNoise dps] in
+theorem sv5_sv6_loop_eq_point (qs : sv_query sv_T) (T τ : ℤ) (l : List sv_T) (point eval : ℕ) (past future : List ℤ) (pres : ℤ) :
     List.length (past ++ [pres] ++ future) = point + 1 ->
     List.length future = eval ->
-    -- sv6_aboveThresh_hist_strict τ l ((past, pres), future) ->
     @sv5_loop _ qs T τ l eval ((past, pres), future) point = @sv6_loop _ qs T τ l point ((past, pres), future) point := by
   revert past pres eval
   induction future
@@ -1459,7 +1481,7 @@ def sv5_sv6_loop_eq_point (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List s
     simp_all [sv1_threshold]
 
 
-def sv5_sv6_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+theorem sv5_sv6_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
     sv5_aboveThresh qs T ε₁ ε₂ l = sv6_aboveThresh qs T ε₁ ε₂ l := by
   unfold sv5_aboveThresh
   unfold sv6_aboveThresh
@@ -1504,7 +1526,7 @@ def sv7_aboveThresh (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : Li
         else probZero
   computation point
 
-def sv6_sv7_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+theorem sv6_sv7_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
     sv6_aboveThresh qs T ε₁ ε₂ l = sv7_aboveThresh qs T ε₁ ε₂ l := by
   apply SLang.ext
   intro point
@@ -1530,7 +1552,7 @@ def sv6_sv7_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv
     simp
     conv =>
       enter [2, 1, a]
-      rw [<- ENNReal.tsum_mul_left]
+      rw [← ENNReal.tsum_mul_left]
     conv =>
       lhs
       unfold sv6_loop
@@ -1540,7 +1562,7 @@ def sv6_sv7_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv
     conv =>
       rhs
       enter [1, a]
-      rw [<- mul_assoc]
+      rw [← mul_assoc]
       enter [1]
       rw [mul_comm]
       rw [sv4_presample_split']
@@ -1564,7 +1586,7 @@ def sv6_sv7_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv
       · apply And.intro
         · intro K
           apply Hf1
-          rw [<- K]
+          rw [← K]
           congr
           simp [vsm_init, vsm_last]
           symm
@@ -1573,22 +1595,22 @@ def sv6_sv7_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv
           simp [K] at HL
         · intro K
           apply Hf2
-          rw [<- K]
+          rw [← K]
           split <;> split
           · rfl
-          · exfalso
-            rename_i h1 h2
+          · next h1 h2 =>
+            exfalso
             apply h2
-            rw [<- h1]
+            rw [← h1]
             congr
             simp [vsm_init, vsm_last]
             apply drop_init_lemma
             intro K
             simp [K] at HL
-          · exfalso
-            rename_i h2 h1
+          · next h2 h1 =>
+            exfalso
             apply h2
-            rw [<- h1]
+            rw [← h1]
             congr
             simp [vsm_init, vsm_last]
             symm
@@ -1615,7 +1637,6 @@ Defines G from the paper
 
 def sv8_sum (qs :  sv_query sv_T) (l : List sv_T) (past : List ℤ) (pres : ℤ) : ℤ :=
   qs (List.length past) l + pres
-  -- exactDiffSum (List.length past) l + pres
 
 -- G is the maximum value of sv8_sum over the tape
 def sv8_G (qs :  sv_query sv_T) (l : List sv_T) (past : List ℤ) (pres : ℤ) (future : List ℤ) : ℤ :=
@@ -1663,7 +1684,7 @@ lemma sv7_sv8_cond_eq (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T)
     simp at IH'
     clear IH
     conv => rhs; simp [sv6_cond_rec]
-    rw [<- IH']
+    rw [← IH']
     clear IH'
     cases (decide (τ + T ≤ sv8_sum qs l (init ++ vi :: vi_1 :: rest) vk)) <;> simp
     conv => lhs; unfold sv8_G; simp
@@ -1671,7 +1692,7 @@ lemma sv7_sv8_cond_eq (qs :  sv_query sv_T) (T : ℤ) (τ : ℤ) (l : List sv_T)
     simp [sv4_aboveThreshC, sv1_aboveThreshC, sv8_sum, sv1_threshold, sv1_noise]
 
 
-def sv7_sv8_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+theorem sv7_sv8_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
     sv7_aboveThresh qs T ε₁ ε₂ l = sv8_aboveThresh qs T ε₁ ε₂ l := by
   apply SLang.ext
   intro point
@@ -1714,19 +1735,7 @@ def sv9_aboveThresh (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : Li
         else probZero
   computation point
 
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma tsum_comm_mul_left {α β : Type*} (f : α → ENNReal) (g : β → ENNReal) (h : α → β → ENNReal) :
-    ∑' a, f a * ∑' b, g b * h a b = ∑' b, g b * ∑' a, f a * h a b := by
-  conv =>
-    lhs
-    enter [1, a]
-    rw [← ENNReal.tsum_mul_left]
-    enter [1, b]
-    rw [show f a * (g b * h a b) = g b * (f a * h a b) by ring]
-  rw [ENNReal.tsum_comm]
-  simp_rw [ENNReal.tsum_mul_left]
-
-def sv8_sv9_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+theorem sv8_sv9_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
     sv8_aboveThresh qs T ε₁ ε₂ l = sv9_aboveThresh qs T ε₁ ε₂ l := by
   apply SLang.ext
   intro point
@@ -1743,112 +1752,6 @@ def sv8_sv9_eq (qs :  sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv
     rw [tsum_comm_mul_left]
 
 
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma ENNReal.tsum_lb_single (x : T) (f : T -> ENNReal)  (l : ENNReal) :
-    l ≤ f x -> l ≤ ∑' (a : T), f a := by
-  intro H
-  apply le_trans H
-  apply ENNReal.le_tsum
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma ENNReal.tsum_lb_subset (P : T -> Prop) (f : T -> ENNReal)  (l : ENNReal) :
-    l ≤ (∑'(a : {t : T // P t}), f a.1) -> l ≤ ∑' (a : T), f a := by
-  intro H
-  apply le_trans H
-  apply ENNReal.tsum_comp_le_tsum_of_injective
-  simp
-
-
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma ENNReal.tsum_split (P : T -> Prop) (f : T -> ENNReal) :
-    ∑' (a : T), f a = (∑'(a : {t : T // P t}), f a.1) + (∑'(a : {t : T // ¬P t}), f a.1) := by
-  symm
-  apply Summable.tsum_add_tsum_compl (f := f) (s := {t | P t}) <;> apply ENNReal.summable
-
-/-
-def β_geo (β : ENNReal) : SLang ℕ := (probGeometric (fun x => if x then β else 1 - β))
-
-def β_geo_recurrence (β : ENNReal) (n : ℕ) (H : n > 0) : β_geo β (n + 1) = β * β_geo β n := by
-  simp [β_geo, probGeometric_apply]
-  split
-  · exfalso
-    simp_all
-  · ring_nf
-    rename_i h
-    rw [mul_pow_sub_one h]
-
-def β_geo' (β : ℝ) : ℕ -> ℝ :=
-  fun N =>
-    match N with
-    | 0 => 0
-    | Nat.succ N' => ENNReal.toReal (β_geo β N')
--/
-
-def geo_cdf (β : ENNReal) (n : ℕ) : ENNReal := 1 - (1 - β)^n
-
-
--- set_option pp.coercions false
-omit [DPSystem ℕ] [DPNoise dps] in
-lemma geo_cdf_rec (β : ENNReal) (Hβ1: β ≤ 1) (n : ℕ) :
-      geo_cdf β (n + 1) = β + (1 - β) * geo_cdf β n := by
-  unfold geo_cdf
-  /-
-  suffices ENNReal.toEReal (1 - (1 - β) ^ (n + 1)) = ENNReal.toEReal (β + (1 - β) * (1 - (1 - β) ^ n)) by
-    apply EReal.coe_ennreal_injective
-    apply this
-  -/
-
-  suffices ENNReal.toReal (1 - (1 - β) ^ (n + 1)) = ENNReal.toReal (β + (1 - β) * (1 - (1 - β) ^ n)) by
-    apply (ENNReal.toReal_eq_toReal_iff _ _).mp at this
-    cases this
-    · trivial
-    rename_i this
-    cases this
-    · rename_i h
-      rcases h with ⟨ A, B ⟩
-      simp_all
-      exfalso
-      cases B
-      · simp_all
-      · rename_i h
-        apply ENNReal.mul_eq_top.mp at h
-        simp_all
-    · rename_i h
-      rcases h with ⟨ A, _ ⟩
-      simp_all
-  ring_nf
-  have C1 : β ≠ ⊤ := by
-    intro K
-    simp_all
-  have C3 : (1 - β) ^ (n + 1) ≤ 1 := by
-    apply pow_le_one'
-    apply tsub_le_self
-  have C4 : (1 - β) ^ n ≤ 1 := by
-    apply pow_le_one'
-    apply tsub_le_self
-  have C2 : (1 - β) * (1 - (1 - β) ^ n) ≠ ⊤ := by
-    apply ENNReal.mul_ne_top
-    · apply ENNReal.sub_ne_top
-      simp
-    · apply ENNReal.sub_ne_top
-      simp
-  rw [ENNReal.toReal_add C2 C1]
-  rw [ENNReal.toReal_mul]
-  rw [← pow_succ']
-  rw [ENNReal.toReal_sub_of_le C3 (by simp)]
-  rw [ENNReal.toReal_sub_of_le Hβ1 (by simp)]
-  rw [ENNReal.toReal_sub_of_le C4 (by simp)]
-  rw [ENNReal.toReal_pow]
-  rw [ENNReal.toReal_pow]
-  rw [ENNReal.toReal_sub_of_le Hβ1 (by simp)]
-  rw [mul_sub]
-  simp
-  rw [pow_succ]
-  linarith
-
-
-
-
 end equiv
 
 
@@ -1857,19 +1760,92 @@ abbrev has_lucky {sv_T : Type} (qs : sv_query sv_T) (T : ℤ) : Prop :=
 
 section pmf
 
-lemma ite_conv_left {P : Prop} {D} {a b c : ENNReal} (H : a = c) : @ite _ P D a b = @ite _ P D c b := by
-  split <;> trivial
-
-lemma ite_mono_left {P : Prop} {D} {a b c : ENNReal} (H : a ≤ c) : @ite _ P D a b ≤ @ite _ P D c b := by
-  split <;> trivial
-
-lemma ite_lemma_1 {P : Prop} {D} {f : T -> ENNReal} : ∑'(a : T), @ite _ P D (f a) 0 = @ite _ P D (∑'(a : T), f a) 0 := by
-  split
-  · rfl
-  · simp
-
 variable (qs :  sv_query sv_T)
 variable (T : ℤ)
+
+/-- Unrolling one step of `probWhileCut` gives a lower bound on the total probability. -/
+lemma sv1_lb_advance (τ : ℤ) (ε₁ ε₂ : ℕ+) (l : List sv_T) (cut : ℕ) (H : List ℤ) (v : ℤ) :
+    (∑' (x1 : ℕ) (x2 : sv1_state),
+        if x1 = sv1_threshold x2
+          then (sv1_aboveThreshF ε₁ ε₂ (H, v)).probBind
+                 (fun v => probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1) v) x2
+          else 0)
+    ≤ (∑' (x : ℕ) (x_1 : sv1_state),
+        if x = sv1_threshold x_1
+          then probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1 + 1) (H, v) x_1
+          else 0) := by
+  conv =>
+    rhs
+    enter [1, x1, 1, x2]
+    unfold probWhileCut
+    unfold probWhileFunctional
+    simp
+  split
+  · simp
+  · simp
+    apply ENNReal.tsum_lb_single (List.length H)
+    apply ENNReal.tsum_lb_single (H, v)
+    conv =>
+      rhs
+      simp [sv1_threshold]
+    have X :
+      (∑' (x1 : ℕ) (x2 : sv1_state),
+        if x1 = sv1_threshold x2 then
+          ∑' (a : sv1_state),
+            sv1_aboveThreshF ε₁ ε₂ (H, v) a * probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1) a x2
+        else 0) =
+      (∑' (x1 : ℕ) (x2 : sv1_state),
+        if x1 = sv1_threshold x2 then
+          ((sv1_aboveThreshF ε₁ ε₂ (H, v) >>=  probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1)) x2)
+        else 0) := by
+      simp
+    rw [X]
+    clear X
+    rw [ENNReal.tsum_comm]
+    have X : ∀ b : sv1_state,
+             (∑' (a : ℕ),
+               if a = sv1_threshold b then
+                 (sv1_aboveThreshF ε₁ ε₂ (H, v) >>= probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1)) b
+             else 0) =
+             ((sv1_aboveThreshF ε₁ ε₂ (H, v) >>= probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1)) b) :=  by
+        intro b
+        rw [tsum_ite_eq]
+    conv =>
+      lhs
+      enter [1, b]
+      rw [X b]
+    clear X
+    simp [sv1_aboveThreshF]
+    apply le_trans
+    · apply ENNReal.tsum_le_tsum
+      intro a
+      simp
+      apply ENNReal.tsum_le_tsum
+      intro a1
+      gcongr
+    rw [ENNReal.tsum_comm]
+    conv =>
+      lhs
+      enter [1, b]
+      rw [ENNReal.tsum_mul_left]
+    apply le_trans (b := ∑' (x : ℤ), (privNoiseGuess ε₁ ε₂) x * 1)
+    · apply ENNReal.tsum_le_tsum
+      intro x
+      gcongr
+      apply sv1_loop_ub
+    · simp [SPMF_sum_one]
+
+lemma privNoiseGuess_pure_pos (ε₁ ε₂ : ℕ+) (k : ℤ) :
+    0 < @privNoiseGuess PureDPSystem laplace_pureDPSystem ε₁ ε₂ k := by
+  simp [privNoiseGuess, privNoiseZero, DPNoise.noise, privNoisedQueryPure, DiscreteLaplaceGenSamplePMF]
+  simp [DFunLike.coe]
+  apply mul_pos
+  · apply div_pos
+    · simp
+    · apply Right.add_pos'
+      · apply Real.exp_pos
+      · simp
+  · apply Real.exp_pos
 
 lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
     1 ≤ ∑'s, (@sv1_aboveThresh PureDPSystem laplace_pureDPSystem sv_T qs T ε₁ ε₂ l s)  := by
@@ -1909,20 +1885,20 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
     apply mul_le_mul_right
     apply ENNReal.tsum_le_tsum
     intro state_size
-    apply ENNReal.tsum_iSup_comm'
+    apply iSup_tsum_le_tsum_iSup
   apply le_trans _ ?G1
   case G1 =>
     apply ENNReal.tsum_le_tsum
     intro v0
     apply mul_le_mul_right
-    apply ENNReal.tsum_iSup_comm'
+    apply iSup_tsum_le_tsum_iSup
   simp
   conv =>
     enter [2, 1, v0]
     rw [ENNReal.mul_iSup]
   apply le_trans _ ?G1
   case G1 =>
-    apply ENNReal.tsum_iSup_comm'
+    apply iSup_tsum_le_tsum_iSup
 
   -- The lucky event: sampling above a value T, which forces the loop to terminate
   rcases (lucky_guess τ l) with ⟨ K, HK ⟩
@@ -1941,26 +1917,18 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
     have HU : PLucky K := by simp [PLucky]
     apply LT.lt.trans_le _ ?G2
     case G2 => apply ENNReal.le_tsum ⟨ _, HU ⟩
-    simp [privNoiseGuess, privNoiseZero, DPNoise.noise, privNoisedQueryPure, DiscreteLaplaceGenSamplePMF]
-    simp [DFunLike.coe]
-    apply mul_pos
-    · apply div_pos
-      · simp
-      · apply Right.add_pos'
-        · apply Real.exp_pos
-        · simp
-    · apply Real.exp_pos
+    exact privNoiseGuess_pure_pos ε₁ ε₂ K
   have Hρ_nz : ρ ≠ 0 := by apply pos_iff_ne_zero.mp Hρ_lb
   have Hρ_ub : ρ ≤ 1 := by
-    rw [<- Hρ_1]
+    rw [← Hρ_1]
     rw [ENNReal.tsum_split PLucky]
     simp_all only [ge_iff_le, self_le_add_right, PLucky, ρ]
   have Hρ_ub_strict : ρ < 1 := by
-    rw [<- Hρ_1]
+    rw [← Hρ_1]
     rw [ENNReal.tsum_split PLucky]
     conv =>
       lhs
-      rw [<- add_zero ρ]
+      rw [← add_zero ρ]
     apply ENNReal.add_lt_add_of_le_of_lt
     · intro X; simp_all
     · rfl
@@ -1968,73 +1936,10 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
       have HU : ¬PLucky (K - 1) := by simp [PLucky]
       apply LT.lt.trans_le _ ?G2
       case G2 => apply ENNReal.le_tsum ⟨ _, HU ⟩
-      simp [privNoiseGuess, privNoiseZero, DPNoise.noise, privNoisedQueryPure, DiscreteLaplaceGenSamplePMF]
-      simp [DFunLike.coe]
-      apply mul_pos
-      · apply div_pos
-        · simp
-        · apply Right.add_pos'
-          · apply Real.exp_pos
-          · simp
-      · apply Real.exp_pos
+      exact privNoiseGuess_pure_pos ε₁ ε₂ (K - 1)
 
   -- Bound the CDF below by the geometric CDF
-  apply @le_trans _ _ _ (⨆(y : ℕ), geo_cdf ρ y)
-  · -- Math
-    apply le_iSup_iff.mpr
-    intro b H
-    apply Classical.by_contradiction
-    intro H1
-    simp at H1
-    have Hz : (∃ z, (1 - ρ)^z < 1 - b) := by
-      have W := exists_pow_lt_of_lt_one (x := ENNReal.toNNReal (1 - b)) (y := ENNReal.toNNReal (1 - ρ)) ?G2 ?G1
-      case G2 =>
-        rw [ENNReal.toNNReal_pos_iff]
-        apply And.intro
-        · simp
-          trivial
-        · apply ENNReal.sub_lt_of_lt_add
-          · exact le_of_lt H1
-          · simp
-      case G1 =>
-        apply ENNReal.toNNReal_lt_of_lt_coe
-        simp
-        apply ENNReal.sub_lt_self
-        · simp
-        · simp
-        · trivial
-      rcases W with ⟨ N, HN ⟩
-      exists N
-      rw [<- ENNReal.toNNReal_pow] at HN
-      apply (ENNReal.toNNReal_lt_toNNReal _ _).mp
-      · trivial
-      · apply ENNReal.pow_ne_top
-        apply ENNReal.sub_ne_top
-        simp
-      · apply ENNReal.sub_ne_top
-        simp
-    rcases Hz with ⟨ z, Hz ⟩
-    have Hz' : 1 - (1 - ρ) ^ z > 1 - (1 - b) := by
-      apply LT.lt.gt
-      apply (ENNReal.sub_lt_iff_lt_right _ _).mpr
-      · apply ENNReal.lt_add_of_sub_lt_left
-        · left
-          simp
-        · apply Eq.trans_lt _ Hz
-          apply ENNReal.sub_sub_cancel
-          · simp
-          apply Right.pow_le_one_of_le
-          apply tsub_le_self
-      · apply ENNReal.sub_ne_top
-        simp
-      · apply tsub_le_self
-    have H' := H z
-    have X : 1 - (1 - b) = b := by
-      apply ENNReal.sub_sub_cancel
-      · simp
-      exact le_of_lt H1
-    rw [X] at Hz'
-    exact absurd (show _ < _ from GT.gt.lt ‹_›) (LE.le.not_gt H')
+  apply le_trans (iSup_geo_cdf_ge_one ρ Hρ_nz)
   apply iSup_mono
   intro cut
 
@@ -2090,7 +1995,7 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
     apply Eq.le
     -- Math
     clear this
-    rw [<- Hρ_1]
+    rw [← Hρ_1]
     conv =>
       enter [1, 1]
       rw [ENNReal.tsum_split PLucky]
@@ -2107,78 +2012,8 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
 
     -- Because the first sample is not lucky, we can't say anything about the branch we end up in
     -- It may terminate, or it may not.
-    have advance :
-      ((∑' (x1 : ℕ) (x2 : sv1_state),
-            if x1 = sv1_threshold x2
-              then (sv1_aboveThreshF ε₁ ε₂ (H, v)).probBind (fun v => probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1) v) x2
-              else 0)
-        ≤ (∑' (x : ℕ) (x_1 : sv1_state), if x = sv1_threshold x_1 then probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1 + 1) (H, v) x_1 else 0)) := by
-      conv =>
-        rhs
-        enter [1, x1, 1, x2]
-        unfold probWhileCut
-        unfold probWhileFunctional
-        simp
-      split
-      · simp
-      · simp
-        -- RHS is 1
-        apply ENNReal.tsum_lb_single (List.length H)
-        apply ENNReal.tsum_lb_single (H, v)
-        conv =>
-          rhs
-          simp [sv1_threshold]
-
-        have X :
-          (∑' (x1 : ℕ) (x2 : sv1_state),
-            if x1 = sv1_threshold x2 then
-              ∑' (a : sv1_state),
-                sv1_aboveThreshF ε₁ ε₂ (H, v) a * probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1) a x2
-            else 0) =
-          (∑' (x1 : ℕ) (x2 : sv1_state),
-            if x1 = sv1_threshold x2 then
-              ((sv1_aboveThreshF ε₁ ε₂ (H, v) >>=  probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1)) x2)
-            else 0) := by
-          simp
-        rw [X]
-        clear X
-        rw [ENNReal.tsum_comm]
-        have X : ∀ b : sv1_state,
-                 (∑' (a : ℕ),
-                   if a = sv1_threshold b then
-                     (sv1_aboveThreshF ε₁ ε₂ (H, v) >>= probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1)) b
-                 else 0) =
-                 ((sv1_aboveThreshF ε₁ ε₂ (H, v) >>= probWhileCut (sv1_aboveThreshC qs T τ l) (sv1_aboveThreshF ε₁ ε₂) (cut + 1)) b) :=  by
-            intro b
-            rw [tsum_ite_eq]
-        conv =>
-          lhs
-          enter [1, b]
-          rw [X b]
-        clear X
-        simp [sv1_aboveThreshF]
-        apply le_trans
-        · apply ENNReal.tsum_le_tsum
-          intro a
-          simp
-          apply ENNReal.tsum_le_tsum
-          intro a1
-          gcongr
-
-        rw [ENNReal.tsum_comm]
-        conv =>
-          lhs
-          enter [1, b]
-          rw [ENNReal.tsum_mul_left]
-        apply le_trans (b := ∑' (x : ℤ), (privNoiseGuess ε₁ ε₂) x * 1)
-        · apply ENNReal.tsum_le_tsum
-          intro x
-          gcongr
-          apply sv1_loop_ub
-        · simp [SPMF_sum_one]
-    apply le_trans _ advance
+    apply le_trans _ (sv1_lb_advance qs T τ ε₁ ε₂ l cut H v)
     simp
-    clear advance
 
     -- Now we want to commute out the randomness associate to that s1_aboveThreshF
     apply le_trans _ ?G1
@@ -2187,7 +2022,7 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
       intro x
       apply ENNReal.tsum_le_tsum
       intro x_1
-      rw [<- ite_lemma_1]
+      rw [← ite_lemma_1]
     conv =>
       enter [2]
       conv =>
@@ -2304,7 +2139,7 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
         apply ENNReal.tsum_lb_single a.1
         rfl
       simp
-      rw [<- Hρ_1]
+      rw [← Hρ_1]
       rw [ENNReal.tsum_split PLucky]
       rw [add_comm]
 
@@ -2323,14 +2158,14 @@ sv9 normalizes because sv1 normalizes
 def sv9_aboveThresh_SPMF (lucky_guess : has_lucky qs T) (ε₁ ε₂ : ℕ+) (l : List sv_T) : SPMF ℕ :=
   ⟨ @sv9_aboveThresh PureDPSystem laplace_pureDPSystem sv_T qs T ε₁ ε₂ l,
     by
-      rw [<- @sv8_sv9_eq]
-      rw [<- @sv7_sv8_eq]
-      rw [<- @sv6_sv7_eq]
-      rw [<- @sv5_sv6_eq]
-      rw [<- @sv4_sv5_eq]
-      rw [<- @sv3_sv4_eq]
-      rw [<- @sv2_sv3_eq]
-      rw [<- @sv1_sv2_eq]
+      rw [← @sv8_sv9_eq]
+      rw [← @sv7_sv8_eq]
+      rw [← @sv6_sv7_eq]
+      rw [← @sv5_sv6_eq]
+      rw [← @sv4_sv5_eq]
+      rw [← @sv3_sv4_eq]
+      rw [← @sv2_sv3_eq]
+      rw [← @sv1_sv2_eq]
       rw [Summable.hasSum_iff ENNReal.summable]
       apply LE.le.antisymm
       · apply sv1_ub
