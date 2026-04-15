@@ -24,7 +24,7 @@ open Classical
 /--
 Simplified consequence of absolute continuity between PMF's.
 -/
-def AbsCts (p q : T -> ENNReal) : Prop := ∀ x : T, q x = 0 -> p x = 0
+def AbsCts (p q : T → ENNReal) : Prop := ∀ x : T, q x = 0 → p x = 0
 
 
 /--
@@ -66,7 +66,7 @@ Rearrange the definition of ``RenyiDivergence_def`` to obtain an equation for th
 lemma RenyiDivergence_def_exp (p q : PMF T) {α : ℝ} (h : 1 < α) :
   eexp (((α - 1)) * RenyiDivergence_def p q α) = (∑' x : T, (p x)^α * (q x)^(1 - α)) := by
   rw [RenyiDivergence_def]
-  rw [<- mul_assoc]
+  rw [← mul_assoc]
   have H1 : (α.toEReal - OfNat.ofNat 1) =  (α - OfNat.ofNat 1).toEReal := by
     rw [EReal.coe_sub]
     congr
@@ -177,14 +177,14 @@ theorem RenyiDivergenceExpectation' (p q : PMF T) {α : ℝ} (h : 1 < α) :
     apply Ha
     show (p a / q a)^(α - 1) * p a = 0
     rw [hpa, mul_zero]
-  rw [<- tsum_subtype_eq_of_support_subset K1]
+  rw [← tsum_subtype_eq_of_support_subset K1]
   have K2 : Function.support (fun x : T => (p x)^α * (q x)^(1 - α)) ⊆ { t : T | p t ≠ 0 } := by
     intro a Ha hpa
     apply Ha
     show (p a)^α * (q a)^(1 - α) = 0
     rw [hpa, ENNReal.zero_rpow_of_pos (by linarith : 0 < α)]
     simp
-  rw [<- tsum_subtype_eq_of_support_subset K2]
+  rw [← tsum_subtype_eq_of_support_subset K2]
   refine tsum_congr (fun ⟨x', Hx'⟩ => ?_)
   exact RenyiDivergenceExpectation'_pointwise (p x') (q x') h Hx' (PMF.apply_ne_top p x')
 
@@ -315,7 +315,7 @@ end Jensen
 /--
 Quotient from the Real-valued Jensen's inequality applied to the series in the Renyi divergence.
 -/
-noncomputable def Renyi_Jensen_f (p q : PMF T) : T -> ℝ := (fun z => (p z / q z).toReal)
+noncomputable def Renyi_Jensen_f (p q : PMF T) : T → ℝ := (fun z => (p z / q z).toReal)
 
 /--
 Summand from the Renyi divergence equals a real-valued summand, except in a special case.
@@ -390,7 +390,7 @@ lemma Renyi_Jensen_ENNReal_reduct [MeasurableSpace T] [MeasurableSingletonClass 
   by_cases Hspecial : ∀ x : T, ¬(p x = ⊤ ∧ q x ≠ 0 ∧ q x ≠ ⊤)
   · -- Typical case
     simp_rw [Renyi_Jensen_rw p q h H Hspecial]
-    rw [<- ENNReal.ofReal_tsum_of_nonneg ?Hnonneg ?Hsummable]
+    rw [← ENNReal.ofReal_tsum_of_nonneg ?Hnonneg ?Hsummable]
     case Hnonneg =>
       intro t
       exact mul_nonneg (rpow_nonneg toReal_nonneg α) toReal_nonneg
@@ -408,7 +408,7 @@ lemma Renyi_Jensen_ENNReal_reduct [MeasurableSpace T] [MeasurableSingletonClass 
       exact Renyi_Jensen_real (Renyi_Jensen_f p q) q α h
         (fun _ => toReal_nonneg) (Renyi_Jensen_f_MemLp p q h H Hspecial Hnts)
     case G1 =>
-      rw [<- ENNReal.ofReal_rpow_of_nonneg
+      rw [← ENNReal.ofReal_rpow_of_nonneg
             (tsum_nonneg (fun _ => mul_nonneg (HRJf_nonneg _) toReal_nonneg))
             (by linarith : (0 : ℝ) ≤ α)]
       apply ENNReal.rpow_le_rpow _ (by linarith : (0 : ℝ) ≤ α)
@@ -456,7 +456,7 @@ lemma Renyi_Jensen_ENNReal_converse_reduct [MeasurableSpace T] [MeasurableSingle
   by_cases Hspecial : ∀ x : T, ¬(p x = ⊤ ∧ q x ≠ 0 ∧ q x ≠ ⊤)
   · -- Typical case
     simp_rw [Renyi_Jensen_rw p q h H Hspecial] at Hsumeq
-    rw [<- ENNReal.ofReal_tsum_of_nonneg ?Hnonneg ?Hsummable] at Hsumeq
+    rw [← ENNReal.ofReal_tsum_of_nonneg ?Hnonneg ?Hsummable] at Hsumeq
     case Hnonneg =>
       intro t
       exact mul_nonneg (rpow_nonneg toReal_nonneg α) toReal_nonneg
@@ -481,7 +481,7 @@ lemma Renyi_Jensen_ENNReal_converse_reduct [MeasurableSpace T] [MeasurableSingle
       rw [HkLHS_eq] at Hk
       simp_rw [division_def, mul_assoc, ENNReal.inv_mul_cancel (Hq _) (PMF.apply_ne_top _ _),
         mul_one] at Hsumeq
-      rw [<- ENNReal.tsum_toReal_eq fun _ => PMF.apply_ne_top _ _] at Hk
+      rw [← ENNReal.tsum_toReal_eq fun _ => PMF.apply_ne_top _ _] at Hk
       rw [PMF.tsum_coe] at Hk Hsumeq
       simp only [ENNReal.toReal_one, Real.one_rpow] at Hk
       have Hsumeq' : (1 : ℝ) = ∑' n : T, Renyi_Jensen_f p q n ^ α * (q n).toReal := by
@@ -499,7 +499,7 @@ lemma Renyi_Jensen_ENNReal_converse_reduct [MeasurableSpace T] [MeasurableSingle
                       = (fun z : T => (p z).toReal) := by
         funext z; rw [Renyi_Jensen_f, ← ENNReal.toReal_mul, mul_comm, PMF_div_mul_eq p q H]
       rw [HextRHS_eq] at Hext'
-      rw [<- ENNReal.tsum_toReal_eq] at Hext'
+      rw [← ENNReal.tsum_toReal_eq] at Hext'
       · rw [PMF.tsum_coe] at Hext'
         apply (@ENNReal.mul_left_inj _ _ ((q x)⁻¹) ?G1 ?G2).mp
         case G1 =>
@@ -549,11 +549,11 @@ lemma reducedPMF_norm_acts (p q : PMF T) (H : AbsCts p q) : HasSum (reducedPMF_d
     have S1 : ∑' (x : ↑{t | q t ≠ 0}), p ↑x = ∑' (x : T), p x := by
       apply tsum_subtype_eq_of_support_subset K1
     have T1 : ∑' (x : T), p x = 1 := by exact tsum_coe p
-    rw [<- T1]
-    rw [<- S1]
+    rw [← T1]
+    rw [← S1]
     simp
     rfl
-  rw [<- H3]
+  rw [← H3]
   apply H2
 
 /--
@@ -581,7 +581,7 @@ lemma reducedPMF_tsum_mul_eq (p q : PMF T) (H : AbsCts p q)
     intro a Ha hqa; apply Ha
     show f (p a) (q a) * q a = 0
     rw [hqa, mul_zero]
-  rw [<- tsum_subtype_eq_of_support_subset Hsupp]
+  rw [← tsum_subtype_eq_of_support_subset Hsupp]
   rfl
 
 /--
@@ -666,7 +666,7 @@ lemma RenyiDivergence_refl_zero (p : PMF T) {α : ℝ} (Hα : 1 < α) : (0 = Ren
   apply ereal_smul_eq_left (α.toEReal - OfNat.ofNat 1)
     (EReal_sub_one_pos_of_one_lt Hα) (EReal_sub_one_lt_top α)
   apply eexp_injective
-  rw [<- H1]
+  rw [← H1]
   simp
 
 /--
@@ -674,7 +674,7 @@ Renyi divergence is zero if and only if the distributions are equal
 -/
 theorem RenyiDivergence_def_eq_0_iff [MeasurableSpace T] [MeasurableSingletonClass T] [Countable T]
   (p q : PMF T) {α : ℝ} (Hα : 1 < α) (Hcts : AbsCts p q) :
-  (RenyiDivergence_def p q α = 0) <-> (p = q) := by
+  (RenyiDivergence_def p q α = 0) ↔ (p = q) := by
   apply Iff.intro
   · intro Hrdeq
     apply Renyi_Jensen_ENNReal_converse
@@ -684,7 +684,7 @@ theorem RenyiDivergence_def_eq_0_iff [MeasurableSpace T] [MeasurableSingletonCla
       simp at H1
       rw [RenyiDivergence_def_exp p q Hα] at H1
       rw [RenyiDivergenceExpectation p q Hα Hcts] at H1
-      rw [<- H1]
+      rw [← H1]
       clear H1
       simp_rw [PMF_div_mul_eq p q Hcts]
       simp
@@ -718,12 +718,12 @@ The Renyi divergence between absolutely continuous distributions is zero if and 
 distributions are equal.
 -/
 theorem RenyiDivergence_aux_zero [MeasurableSpace T] [MeasurableSingletonClass T] [Countable T]
-  (p q : PMF T) {α : ℝ} (Hα : 1 < α) (Hac : AbsCts p q) : p = q <-> RenyiDivergence p q α = 0 := by
+  (p q : PMF T) {α : ℝ} (Hα : 1 < α) (Hac : AbsCts p q) : p = q ↔ RenyiDivergence p q α = 0 := by
   apply Iff.intro
   · intro Heq
     rw [Heq]
     rw [RenyiDivergence]
-    rw [<- RenyiDivergence_refl_zero _ Hα]
+    rw [← RenyiDivergence_refl_zero _ Hα]
     simp
   · intro H
     apply (RenyiDivergence_def_eq_0_iff p q Hα Hac).mp
@@ -744,14 +744,14 @@ lemma RenyiDivergence_le_MaxDivergence {p q : PMF T} {ε : ENNReal} {α : ℝ} (
   rw [RenyiDivergence]
   conv =>
     rhs
-    rw [<- @ofEReal_toENNReal ε]
+    rw [← @ofEReal_toENNReal ε]
   apply ofEReal_le_mono
 
   -- Rewrite to expectation conditioned on q
   apply (ENNReal.ereal_smul_le_left (α - 1) ?G1 ?G2)
   case G1 =>
     rw [← EReal.coe_one]
-    rw [<- EReal.coe_sub]
+    rw [← EReal.coe_sub]
     apply EReal.coe_pos.mpr
     linarith
   case G2 => exact EReal.coe_lt_top _
