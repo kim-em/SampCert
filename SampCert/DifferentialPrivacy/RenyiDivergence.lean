@@ -77,15 +77,28 @@ lemma RenyiDivergence_def_exp (p q : PMF T) {α : ℝ} (h : 1 < α) :
     simp
   simp [H2]
 
+lemma eexp_rpow_eq_eexp_mul {β : ℝ} (hβ : 0 < β) (ε : ENNReal) :
+    eexp ε.toEReal ^ β = eexp (ε.toEReal * β.toEReal) := by
+  induction ε
+  · show eexp (⊤ : EReal) ^ β = eexp ((⊤ : EReal) * β.toEReal)
+    rw [eexp_top, ENNReal.top_rpow_of_pos hβ,
+        EReal.top_mul_of_pos (EReal.coe_pos.mpr hβ), eexp_top]
+  · rename_i r
+    have Hcast : ((r : ENNReal).toEReal) = ((r : ℝ) : EReal) := rfl
+    rw [Hcast, eexp_ofReal, ← EReal.coe_mul, eexp_ofReal,
+        ENNReal.ofReal_rpow_of_pos (Real.exp_pos _), ← Real.exp_mul]
+
+lemma EReal_coe_sub_one (α : ℝ) :
+    (α.toEReal - OfNat.ofNat 1) = ((α - 1 : ℝ) : EReal) := by
+  rw [← EReal.coe_one, ← EReal.coe_sub]
+
 lemma EReal_sub_one_pos_of_one_lt {α : ℝ} (Hα : 1 < α) :
     (0 : EReal) < α.toEReal - OfNat.ofNat 1 := by
-  rw [show (OfNat.ofNat 1 : EReal) = (1 : ℝ).toEReal from rfl, ← EReal.coe_sub]
-  exact_mod_cast sub_pos.mpr Hα
+  rw [EReal_coe_sub_one]; exact_mod_cast sub_pos.mpr Hα
 
 lemma EReal_sub_one_lt_top (α : ℝ) :
     (α.toEReal - OfNat.ofNat 1) < ⊤ := by
-  rw [show (OfNat.ofNat 1 : EReal) = (1 : ℝ).toEReal from rfl, ← EReal.coe_sub]
-  exact EReal.coe_lt_top _
+  rw [EReal_coe_sub_one]; exact EReal.coe_lt_top _
 
 lemma RenyiDivergenceExpectation_pointwise (a b : ENNReal) {α : ℝ} (h : 1 < α)
     (Hac : b = 0 → a = 0) : a ^ α * b ^ (1 - α) = (a / b) ^ α * b := by
@@ -247,7 +260,7 @@ theorem Renyi_Jensen_real [t2 : MeasurableSingletonClass T] (f : T → ℝ) (q :
 
 
 /--
-Strict version of Jensen't inequality applied to the function ``(⬝)^α``.
+Strict version of Jensen's inequality applied to the function ``(⬝)^α``.
 -/
 theorem Renyi_Jensen_strict_real [t2 : MeasurableSingletonClass T] [tcount : Countable T] (f : T → ℝ) (q : PMF T) (α : ℝ) (h : 1 < α) (h2 : ∀ x : T, 0 ≤ f x) (mem : MemLp f (ENNReal.ofReal α) (PMF.toMeasure q)) (HT_nz : ∀ t : T, q t ≠ 0):
   ((∑' x : T, (f x) * (q x).toReal)) ^ α < (∑' x : T, (f x) ^ α * (q x).toReal) ∨ (∀ x : T, f x = ∑' (x : T), (q x).toReal * f x) := by
@@ -268,55 +281,31 @@ theorem Renyi_Jensen_strict_real [t2 : MeasurableSingletonClass T] [tcount : Cou
     (Integrable_of_MemLp_one_lt h mem)
     (by rw [Function.comp_def]; exact Integrable_rpow_of_one_lt h h2 mem)
   simp at D
-  · cases D
-    · rename_i HR
-      right
-      simp at HR
-      -- Because T is discrete, almost-everywhere equality should become equality
-      have HR' := @Filter.EventuallyEq.eventually _ _ (ae q.toMeasure) f (Function.const T (⨍ (x : T), f x ∂q.toMeasure)) HR
-      simp [Filter.Eventually] at HR'
-      -- The measure of the compliment of the set in HR' is zero
-      simp [ae] at HR'
-      rw [PMF.toMeasure_apply _ ?Hmeas] at HR'
-      case Hmeas =>
-        exact MeasurableSet.of_discrete
-      -- Sum is zero iff all elements are zero
-      apply ENNReal.tsum_eq_zero.mp at HR'
-      -- Indicator is zero when proposition is not true
+  · rcases D with HR | HR
+    · right
+      -- HR : f =ᶠ[ae q.toMeasure] const _; convert via measure-zero of complement
+      have Hmeas_zero : q.toMeasure {x | f x ≠ ⨍ (x : T), f x ∂q.toMeasure} = 0 := by
+        rw [← MeasureTheory.ae_iff]; exact HR
+      rw [PMF.toMeasure_apply _ MeasurableSet.of_discrete] at Hmeas_zero
+      have Hpointwise := ENNReal.tsum_eq_zero.mp Hmeas_zero
+      -- Indicator is zero ⇒ proposition holds for all x with q x ≠ 0
       intro x
-      have HR' := HR' x
-      simp at HR'
+      have Hx := Hpointwise x
       by_cases Heqx : f x = ⨍ (x : T), f x ∂q.toMeasure
-      ·
-        -- Rewrite the average
-        rw [MeasureTheory.average] at Heqx
-        rw [MeasureTheory.integral_countable] at Heqx
-        · simp at Heqx
-          conv at Heqx =>
-            rhs
-            arg 1
-            intro x
-            rw [MeasureTheory.measureReal_def]
-            rw [PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _)]
-          simpa using Heqx
-        · simp
+      · -- Rewrite the average to pull out the toReal sum
+        have Hint_f : MeasureTheory.Integrable f q.toMeasure := by
           apply MeasureTheory.MemLp.integrable _ mem
-          have X : (1 : ENNReal) = ENNReal.ofReal (1 : ℝ) := by simp
-          rw [X]
-          apply ofReal_le_ofReal_iff'.mpr
-          left
-          linarith
-      · -- At type T, q x is never zero
-        exact absurd (HR' Heqx) (HT_nz x)
-    · rename_i HR
-      left
-      rw [<- MeasureTheory.integral_average]
-      rw [<- MeasureTheory.integral_average]
-      simp
-      rw [<- MeasureTheory.integral_average]
-      rw [<- MeasureTheory.integral_average]
-      simp
-      apply HR
+          rw [show (1 : ENNReal) = ENNReal.ofReal 1 from by simp]
+          exact ofReal_le_ofReal_iff'.mpr (Or.inl (by linarith))
+        rw [MeasureTheory.average_eq_integral, MeasureTheory.integral_countable Hint_f] at Heqx
+        simp_rw [MeasureTheory.measureReal_def,
+          PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _)] at Heqx
+        simpa using Heqx
+      · -- At type T, q x is never zero, so the indicator forces f x = const
+        simp only [Set.mem_setOf_eq, Set.indicator_apply, if_pos Heqx] at Hx
+        exact absurd Hx (HT_nz x)
+    · left
+      rwa [← MeasureTheory.average_eq_integral, ← MeasureTheory.average_eq_integral]
   · exact Integrable_rpow_of_one_lt h h2 mem
   · exact Integrable_of_MemLp_one_lt h mem
 
@@ -324,7 +313,7 @@ end Jensen
 
 
 /--
-Quotient from the Real-valued Jenen's inequality applied to the series in the Renyi divergence.
+Quotient from the Real-valued Jensen's inequality applied to the series in the Renyi divergence.
 -/
 noncomputable def Renyi_Jensen_f (p q : PMF T) : T -> ℝ := (fun z => (p z / q z).toReal)
 
@@ -364,34 +353,33 @@ lemma Renyi_Jensen_f_MemLp [MeasurableSpace T] [MeasurableSingletonClass T] [Cou
   haveI : DiscreteMeasurableSpace T := MeasurableSingletonClass.toDiscreteMeasurableSpace
   have HRJf_nonneg (a : T) : 0 ≤ Renyi_Jensen_f p q a := toReal_nonneg
   have HRJf_nt := Renyi_Jensen_div_ne_top p q H Hspecial
-  simp [MemLp]
   refine ⟨?_, ?_⟩
   · apply MeasureTheory.StronglyMeasurable.aestronglyMeasurable
     apply Measurable.stronglyMeasurable
     apply Measurable.ennreal_toReal
-    conv => right; intro x; rw [division_def]
+    show Measurable (fun x => p x / q x)
+    simp_rw [division_def]
     exact (Measurable.of_discrete).mul ((Measurable.of_discrete).inv)
-  · simp [eLpNorm]
-    split
-    · simp
-    · rename_i Hα
-      simp [eLpNorm']
-      rw [MeasureTheory.lintegral_countable']
-      rw [toReal_ofReal (le_of_lt (lt_trans zero_lt_one h))]
-      apply rpow_lt_top_of_nonneg
-      · simp; exact le_of_not_ge Hα
-      have Hsummand_eq : ∀ a : T,
-          ‖Renyi_Jensen_f p q a‖ₑ ^ α * (PMF.toMeasure q) {a} = (p a / q a) ^ α * q a := by
-        intro a
-        congr 1
-        · rw [enorm_eq_nnnorm, ← Real.toNNReal_eq_nnnorm_of_nonneg (HRJf_nonneg a),
-              Renyi_Jensen_f, ← ENNReal.ofReal.eq_1, ENNReal.ofReal_toReal (HRJf_nt a)]
-        · exact PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _)
-      simp_rw [Hsummand_eq]
-      exact Hnts
+  · rw [eLpNorm_eq_lintegral_rpow_enorm_toReal
+        (by simp; linarith) (by simp)]
+    rw [toReal_ofReal (le_of_lt (lt_trans zero_lt_one h))]
+    apply ENNReal.rpow_lt_top_of_nonneg (by positivity)
+    rw [MeasureTheory.lintegral_countable']
+    have Hsummand_eq : ∀ a : T,
+        ‖Renyi_Jensen_f p q a‖ₑ ^ α * (PMF.toMeasure q) {a} = (p a / q a) ^ α * q a := by
+      intro a
+      congr 1
+      · show (‖Renyi_Jensen_f p q a‖₊ : ENNReal) ^ α = (p a / q a) ^ α
+        rw [← Real.toNNReal_eq_nnnorm_of_nonneg (HRJf_nonneg a)]
+        show (ENNReal.ofReal (Renyi_Jensen_f p q a)) ^ α = (p a / q a) ^ α
+        rw [show Renyi_Jensen_f p q a = (p a / q a).toReal from rfl,
+            ENNReal.ofReal_toReal (HRJf_nt a)]
+      · exact PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _)
+    simp_rw [Hsummand_eq]
+    exact Hnts
 
 /--
-Jensen's inquality applied to ENNReals, in the case that q is nonzero.
+Jensen's inequality applied to ENNReals, in the case that q is nonzero.
 -/
 lemma Renyi_Jensen_ENNReal_reduct [MeasurableSpace T] [MeasurableSingletonClass T] [Countable T]
   (p q : PMF T) {α : ℝ} (h : 1 < α) (H : AbsCts p q) :
@@ -485,9 +473,8 @@ lemma Renyi_Jensen_ENNReal_converse_reduct [MeasurableSpace T] [MeasurableSingle
     -- Apply the converse lemma
     have Hieq := Renyi_Jensen_strict_real (Renyi_Jensen_f p q) q α h HRJf_nonneg
       (Renyi_Jensen_f_MemLp p q h H Hspecial Hnts) Hq
-    cases Hieq
-    · rename_i Hk
-      exfalso
+    rcases Hieq with Hk | Hext
+    · exfalso
       have HkLHS_eq : (fun z : T => Renyi_Jensen_f p q z * (q z).toReal)
                     = (fun z : T => (p z).toReal) := by
         funext z; rw [Renyi_Jensen_f, ← ENNReal.toReal_mul, PMF_div_mul_eq p q H]
@@ -503,8 +490,7 @@ lemma Renyi_Jensen_ENNReal_converse_reduct [MeasurableSpace T] [MeasurableSingle
           mul_nonneg (rpow_nonneg (HRJf_nonneg _) _) toReal_nonneg), Real.one_rpow] using h2
       rw [Hsumeq'] at Hk
       linarith
-    · rename_i Hext
-      -- RHS of Hext is 1, LHS is p/q
+    · -- RHS of Hext is 1, LHS is p/q
       apply PMF.ext
       intro x
       have Hext' := Hext x
@@ -599,7 +585,7 @@ lemma reducedPMF_tsum_mul_eq (p q : PMF T) (H : AbsCts p q)
   rfl
 
 /--
-Jensen's inquality for the Renyi divergence sum between absolutely continuous PMFs
+Jensen's inequality for the Renyi divergence sum between absolutely continuous PMFs
 -/
 theorem Renyi_Jensen_ENNReal [MeasurableSpace T] [MeasurableSingletonClass T] [Countable T]
     (p q : PMF T) {α : ℝ} (h : 1 < α) (Hac : AbsCts p q) :
@@ -612,7 +598,7 @@ theorem Renyi_Jensen_ENNReal [MeasurableSpace T] [MeasurableSingletonClass T] [C
   exact absurd Ha (reducedPMF_pos Hq a.val a.property)
 
 /--
-Converse of Jensen's inquality for the Renyi divergence sum between absolutely continuous PMFs
+Converse of Jensen's inequality for the Renyi divergence sum between absolutely continuous PMFs
 -/
 lemma Renyi_Jensen_ENNReal_converse [MeasurableSpace T] [MeasurableSingletonClass T] [Countable T]
     (p q : PMF T) {α : ℝ} (h : 1 < α) (H : AbsCts p q)
@@ -787,20 +773,9 @@ lemma RenyiDivergence_le_MaxDivergence {p q : PMF T} {ε : ENNReal} {α : ℝ} (
   rw [ENNReal.tsum_mul_left]
   rw [tsum_coe]
   simp
-  have Hα_sub_pos : (0 : EReal) < α.toEReal - OfNat.ofNat 1 := EReal_sub_one_pos_of_one_lt Hα
-  have H : eexp ε.toEReal ^ (α - OfNat.ofNat 1) = eexp (ε * (α - OfNat.ofNat 1)) := by
-    rcases ε
-    · simp
-      rw [EReal.top_mul_of_pos Hα_sub_pos]
-      simp
-      trivial
-    simp
-    rw [ENNReal.ofNNReal, ENNReal.toEReal.eq_def]
-    simp
-    rw [ENNReal.ofReal_rpow_of_pos (exp_pos _), ← Real.exp_mul]
-    rfl
-  rw [H]
-  clear H
-
+  have Hα_pos : (0 : ℝ) < α - 1 := by linarith
+  rw [eexp_rpow_eq_eexp_mul Hα_pos ε]
   apply eexp_mono_le.mp
+  rw [show ((α - OfNat.ofNat 1 : ℝ) : EReal) = α.toEReal - OfNat.ofNat 1 from
+      (EReal_coe_sub_one α).symm]
   rw [mul_comm]
