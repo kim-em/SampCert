@@ -58,7 +58,7 @@ the bound-from function.
 -/
 lemma probBind_congr_strong (p : SLang T) (f : T -> SLang U) (g : T -> SLang U) (Hcong : ∀ t : T, p t ≠ 0 -> f t = g t) :
     p >>= f = p >>= g := by
-  simp
+  simp only [bind]
   unfold probBind
   apply SLang.ext
   intro u
@@ -75,25 +75,22 @@ lemma iSup_tsum_le_tsum_iSup (f : T -> U -> ENNReal) : ⨆ y, ∑' x, f x y ≤ 
   intro a
   apply le_iSup
 
-lemma get_last_lemma (L : List ℤ) (H : L ≠ []) : L.getLastI = L.getLast H := by
+lemma getLastI_eq_getLast (L : List ℤ) (H : L ≠ []) : L.getLastI = L.getLast H := by
   rw [List.getLastI_eq_getLast?_getD]
   rw [List.getLast?_eq_getLast_of_ne_nil H]
   rfl
 
-lemma drop_init_lemma (L : List ℤ) (H : L ≠ []) : L.dropLast ++ [L.getLastI] = L := by
-  rw [get_last_lemma _ H]
+lemma dropLast_append_getLastI (L : List ℤ) (H : L ≠ []) : L.dropLast ++ [L.getLastI] = L := by
+  rw [getLastI_eq_getLast _ H]
   apply List.dropLast_append_getLast H
 
-lemma list_lemma_1 {L : List ℤ} (H : L ≠ []) : List.headI L :: L.tail = L := by
+lemma cons_headI_tail {L : List ℤ} (H : L ≠ []) : List.headI L :: L.tail = L := by
   apply List.cons_head?_tail
   apply Option.mem_def.mpr
   cases L
   · exfalso
     simp at H
   simp
-
-lemma list_lemma_2 {L : List ℤ} (H : L ≠ []) : List.dropLast L ++ [L.getLastI] = L := by
-  rw [drop_init_lemma L H]
 
 lemma tsum_comm_mul_left {α β : Type*} (f : α → ENNReal) (g : β → ENNReal) (h : α → β → ENNReal) :
     ∑' a, f a * ∑' b, g b * h a b = ∑' b, g b * ∑' a, f a * h a b := by
@@ -102,7 +99,7 @@ lemma tsum_comm_mul_left {α β : Type*} (f : α → ENNReal) (g : β → ENNRea
     enter [1, a]
     rw [← ENNReal.tsum_mul_left]
     enter [1, b]
-    rw [show f a * (g b * h a b) = g b * (f a * h a b) by ring]
+    rw [mul_left_comm]
   rw [ENNReal.tsum_comm]
   simp_rw [ENNReal.tsum_mul_left]
 
@@ -136,8 +133,8 @@ def vsm_last (x : {l : List ℤ // l.length = n + 1}) : ℤ :=
 def vsm_init (x : {l : List ℤ // l.length = n + 1}) : {l : List ℤ // l.length = n } :=
   ⟨ List.dropLast x.1, by simp ⟩
 
-lemma vector_sum_singleton (f : { l : List ℤ // l.length = 1 } -> ENNReal) (P : (x : ℤ) -> ([x].length = 1)) :
-    (∑'(x : { l : List ℤ // l.length =  1 }), f x) = (∑' (x : ℤ), f ⟨ [x], P x⟩) := by
+lemma vector_sum_singleton (f : { l : List ℤ // l.length = 1 } -> ENNReal) :
+    (∑'(x : { l : List ℤ // l.length =  1 }), f x) = (∑' (x : ℤ), f ⟨ [x], by simp ⟩) := by
   apply @tsum_eq_tsum_of_ne_zero_bij
   case i =>
     simp [Function.support]
@@ -288,7 +285,7 @@ lemma iSup_geo_cdf_ge_one (ρ : ENNReal) (Hρ_nz : ρ ≠ 0) :
     · simp
     exact le_of_lt H1
   rw [X] at Hz'
-  exact absurd (show _ < _ from GT.gt.lt ‹_›) (LE.le.not_gt H')
+  exact absurd Hz'.lt H'.not_gt
 
 end helpers
 
@@ -644,7 +641,6 @@ lemma sv2_sv3_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List s
   split <;> try rfl
   next H =>
   simp [H, sv1_threshold]
-  clear H
 
   -- Apply a lemma about eventual constancy
   apply probWhile_apply
@@ -917,7 +913,7 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
     enter [1, 1, a]
     rw [← ENNReal.tsum_mul_left]
   rw [← ENNReal.tsum_prod]
-  rw [vector_sum_singleton _ (by simp)]
+  rw [vector_sum_singleton]
 
   have X (x : ℤ) : (∑' (x_1 : ℤ),
       @ite ENNReal (x_1 = x) (Classical.propDecidable _) 0
@@ -961,7 +957,7 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
     rcases final_state with ⟨ f, Hf ⟩
     simp_all
     apply C
-    rw [list_lemma_1 ?G1]
+    rw [cons_headI_tail ?G1]
     intro K
     simp_all
 
@@ -983,7 +979,7 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
     apply C
     rw [List.getLastI_eq_getLast?_getD]
     simp
-    rw [list_lemma_1]
+    rw [cons_headI_tail]
     intro K
     simp_all
 
@@ -1011,9 +1007,9 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
         apply List.reverse_perm
       trans
       · apply H1
-      rw [list_lemma_1 ?G2]
+      rw [cons_headI_tail ?G2]
       case G2 => intro _ ; simp_all
-      rw [list_lemma_2 ?G2]
+      rw [dropLast_append_getLastI _ ?G2]
       case G2 => intro _ ; simp_all
       apply List.Perm.symm
       apply List.reverse_perm
@@ -1029,11 +1025,11 @@ def sv4_presample_split (ε₁ ε₂ : ℕ+) (point : ℕ) :
     · rfl
     · next _ hne =>
       exfalso; apply hne
-      rw [list_lemma_2]; intro K; simp [K] at Hf
+      rw [dropLast_append_getLastI]; intro K; simp [K] at Hf
   · split
     · next hne _ =>
       exfalso; apply hne
-      rw [list_lemma_1]; intro K; simp [K] at Hf
+      rw [cons_headI_tail]; intro K; simp [K] at Hf
     · rfl
 
 
@@ -1094,11 +1090,11 @@ lemma presample_norm_lemma  (point : ℕ) (ε₁ ε₂ : ℕ+) :
           rw [← K]
           congr
           symm
-          apply drop_init_lemma
+          apply dropLast_append_getLastI
           intro K
           simp [K] at HL1
         · simp [vsm_0, vsm_rest, vsm_init, vsm_last]
-          apply drop_init_lemma
+          apply dropLast_append_getLastI
           intro K
           simp [K] at HL1
       · simp [Function.support]
@@ -1133,7 +1129,7 @@ lemma sv3_sv4_loop_presample_step (qs : sv_query sv_T) (T τ : ℤ) (ε₁ ε₂
   apply SLang.ext
   intro final_state
   simp
-  rw [vector_sum_singleton _ (by simp)]
+  rw [vector_sum_singleton]
   apply tsum_congr
   intro x
   simp [len_1_list_to_val]
@@ -1503,7 +1499,7 @@ theorem sv5_sv6_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List
 
 
 /-
-## Program v8
+## Program version 7
 Not executable
 Separates out the zero case
 -/
@@ -1590,7 +1586,7 @@ theorem sv6_sv7_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List
           congr
           simp [vsm_init, vsm_last]
           symm
-          apply drop_init_lemma
+          apply dropLast_append_getLastI
           intro K
           simp [K] at HL
         · intro K
@@ -1604,7 +1600,7 @@ theorem sv6_sv7_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List
             rw [← h1]
             congr
             simp [vsm_init, vsm_last]
-            apply drop_init_lemma
+            apply dropLast_append_getLastI
             intro K
             simp [K] at HL
           · next h2 h1 =>
@@ -1614,12 +1610,12 @@ theorem sv6_sv7_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List
             congr
             simp [vsm_init, vsm_last]
             symm
-            apply drop_init_lemma
+            apply dropLast_append_getLastI
             intro K
             simp [K] at HL
           · rfl
       · simp [vsm_init, vsm_last]
-        apply drop_init_lemma
+        apply dropLast_append_getLastI
         intro K
         simp [K] at HL
     · simp
@@ -1627,7 +1623,7 @@ theorem sv6_sv7_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List
       rfl
 
 /-
-## Program v8
+## Program version 8
 
 Not executable
 Defines G from the paper
@@ -1708,7 +1704,7 @@ theorem sv7_sv8_eq (qs : sv_query sv_T) (T : ℤ) (ε₁ ε₂ : ℕ+) (l : List
 
 
 /-
-## Program v9
+## Program version 9
 
 Not executable
 Rewritten so that the randomness we will cancel out is right at the front
@@ -1994,7 +1990,6 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
     apply mul_le_mul_left
     apply Eq.le
     -- Math
-    clear this
     rw [← Hρ_1]
     conv =>
       enter [1, 1]
@@ -2144,13 +2139,16 @@ lemma sv1_lb (lucky_guess : has_lucky qs T) ε₁ ε₂ l :
       rw [add_comm]
 
 
+/-- Under a lucky-guess condition, `sv1_aboveThresh` is a proper probability distribution. -/
+lemma sv1_hasSum_one (lucky_guess : has_lucky qs T) (ε₁ ε₂ : ℕ+) (l : List sv_T) :
+    HasSum (@sv1_aboveThresh PureDPSystem laplace_pureDPSystem sv_T qs T ε₁ ε₂ l) 1 := by
+  rw [Summable.hasSum_iff ENNReal.summable]
+  apply LE.le.antisymm
+  · apply sv1_ub
+  · exact sv1_lb qs T lucky_guess ε₁ ε₂ l
+
 def sv1_aboveThresh_PMF (lucky_guess : has_lucky qs T) (ε₁ ε₂ : ℕ+) (l : List sv_T) : SPMF ℕ :=
-  ⟨ sv1_aboveThresh qs T ε₁ ε₂ l,
-    by
-      rw [Summable.hasSum_iff ENNReal.summable]
-      apply LE.le.antisymm
-      · apply sv1_ub
-      · exact sv1_lb qs T lucky_guess ε₁ ε₂ l ⟩
+  ⟨ sv1_aboveThresh qs T ε₁ ε₂ l, sv1_hasSum_one qs T lucky_guess ε₁ ε₂ l ⟩
 
 /--
 sv9 normalizes because sv1 normalizes
@@ -2166,10 +2164,7 @@ def sv9_aboveThresh_SPMF (lucky_guess : has_lucky qs T) (ε₁ ε₂ : ℕ+) (l 
       rw [← @sv3_sv4_eq]
       rw [← @sv2_sv3_eq]
       rw [← @sv1_sv2_eq]
-      rw [Summable.hasSum_iff ENNReal.summable]
-      apply LE.le.antisymm
-      · apply sv1_ub
-      · exact sv1_lb qs T lucky_guess ε₁ ε₂ l ⟩
+      exact sv1_hasSum_one qs T lucky_guess ε₁ ε₂ l ⟩
 
 end pmf
 
