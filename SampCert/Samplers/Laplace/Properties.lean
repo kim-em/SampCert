@@ -39,26 +39,13 @@ theorem DiscreteLaplaceSampleLoopIn1Aux_normalizes (t : PNat) :
     · rw [ENNReal.tsum_eq_add_tsum_ite a]
     · rw [ENNReal.tsum_eq_add_tsum_ite a]
   simp only [↓reduceIte]
-  have A : forall x a : ℕ, (if x = a then (0 : ENNReal)
-      else if a = x then UniformSample t x * BernoulliExpNegSample x t false else 0) = 0 := by
-    intro x a
-    split
-    · simp
-    · split
-      · rename_i h1 h2
-        subst h2
-        contradiction
-      · simp
-  have B : forall x a : ℕ, (if x = a then (0 : ENNReal)
-      else if a = x then UniformSample t x * BernoulliExpNegSample x t true else 0) = 0 := by
-    intro x a
-    split
-    · simp
-    · split
-      · rename_i h1 h2
-        subst h2
-        contradiction
-      · simp
+  have Hzero : ∀ (f : ℕ → ENNReal) (a : ℕ),
+      (fun x => if x = a then (0 : ENNReal) else if a = x then f x else 0) = fun _ => 0 := by
+    intro f a
+    funext x
+    by_cases h : x = a
+    · simp [h]
+    · simp [h, Ne.symm h]
   simp only [and_false, ↓reduceIte, add_zero, zero_add, mul_zero,
     mul_ite, Bool.false_eq_true, Bool.true_eq_false]
   conv =>
@@ -66,234 +53,118 @@ theorem DiscreteLaplaceSampleLoopIn1Aux_normalizes (t : PNat) :
     arg 1
     intro a
     congr
-    · right
-      arg 1
-      intro x
-      rw [A]
-    · right
-      arg 1
-      intro x
-      rw [B]
-  clear A B
+    · right; rw [show (fun x => if x = a then (0 : ENNReal) else
+        if a = x then UniformSample t x * BernoulliExpNegSample x t false else 0) = fun _ => 0
+          from Hzero _ a]
+    · right; rw [show (fun x => if x = a then (0 : ENNReal) else
+        if a = x then UniformSample t x * BernoulliExpNegSample x t true else 0) = fun _ => 0
+          from Hzero _ a]
+  clear Hzero
   simp only [tsum_zero, add_zero]
   conv =>
     left
     arg 1
     intro a
     rw [← mul_add]
-  have A : ∀ a, BernoulliExpNegSample a t false + BernoulliExpNegSample a t true = 1 := by
-    intro a
-    rw [← tsum_bool]
-    rw [BernoulliExpNegSample_normalizes]
-  conv =>
-    left
-    arg 1
-    intro a
-    rw [A]
-  clear A
-  simp
+  have hnorm : ∀ a : ℕ, BernoulliExpNegSample a t false + BernoulliExpNegSample a t true = 1 := by
+    intro a; rw [← tsum_bool, BernoulliExpNegSample_normalizes]
+  simp_rw [hnorm, mul_one, UniformSample_normalizes]
 
 
 theorem DiscreteLaplaceSampleLoopIn1Aux_apply_true (t : PNat) (n : ℕ) :
-  DiscreteLaplaceSampleLoopIn1Aux t (n, true)
-    = if n < t then ENNReal.ofReal (rexp (- (n / t))) / t else 0 := by
-  simp [DiscreteLaplaceSampleLoopIn1Aux]
-  rw [ENNReal.tsum_eq_add_tsum_ite n]
-  have A : ∀ x : ℕ, (@ite ENNReal (x = n) (propDecidable _) 0
-      (if n = x then UniformSample t x * ENNReal.ofReal (rexp (-(↑x / ↑↑t))) else 0)) = 0 := by
-    intro x
-    split
-    · simp
-    · split
-      · rename_i h1 h2
-        subst h2
-        contradiction
-      · simp
-  conv =>
-    left
-    right
-    arg 1
-    intro x
-    rw [A]
-  simp only [↓reduceIte, tsum_zero, add_zero]
-  rw [UniformSample_apply']
-  simp
-  rw [mul_comm]
-  rw [← division_def]
+    DiscreteLaplaceSampleLoopIn1Aux t (n, true)
+      = if n < t then ENNReal.ofReal (rexp (- (n / t))) / t else 0 := by
+  simp only [DiscreteLaplaceSampleLoopIn1Aux, Bind.bind, Pure.pure, SLang.bind_apply,
+    SLang.pure_apply, Prod.mk.injEq, mul_ite, mul_one, mul_zero]
+  rw [tsum_eq_single n]
+  · rw [UniformSample_apply']
+    split_ifs <;> simp [mul_comm, division_def]
+  · intro x hx
+    simp [Ne.symm hx]
 
 theorem DiscreteLaplaceSampleLoopIn1Aux_apply_false (t : PNat) (n : ℕ) :
-  DiscreteLaplaceSampleLoopIn1Aux t (n, false)
-    = if n < t then (1 - ENNReal.ofReal (rexp (- (n / t)))) / t else 0 := by
-  simp [DiscreteLaplaceSampleLoopIn1Aux]
-  rw [ENNReal.tsum_eq_add_tsum_ite n]
-  have A : ∀ x : ℕ, (@ite ENNReal (x = n) (propDecidable _) 0
-      (if n = x then UniformSample t x * (1 - ENNReal.ofReal (rexp (-(↑x / ↑↑t)))) else 0)) = 0 := by
-    intro x
-    split
-    · simp
-    · split
-      · rename_i h1 h2
-        subst h2
-        contradiction
-      · simp
-  conv =>
-    left
-    right
-    arg 1
-    intro x
-    rw [A]
-  simp only [↓reduceIte, tsum_zero,
-    add_zero]
-  rw [UniformSample_apply']
-  simp
-  rw [mul_comm]
-  rw [← division_def]
+    DiscreteLaplaceSampleLoopIn1Aux t (n, false)
+      = if n < t then (1 - ENNReal.ofReal (rexp (- (n / t)))) / t else 0 := by
+  simp only [DiscreteLaplaceSampleLoopIn1Aux, Bind.bind, Pure.pure, SLang.bind_apply,
+    SLang.pure_apply, Prod.mk.injEq, mul_ite, mul_one, mul_zero]
+  rw [tsum_eq_single n]
+  · rw [UniformSample_apply']
+    split_ifs <;> simp [mul_comm, division_def]
+  · intro x hx
+    simp [Ne.symm hx]
 
 theorem DiscreteLaplaceSampleLoopIn1_apply_pre (t : PNat) (n : ℕ) :
-  (DiscreteLaplaceSampleLoopIn1 t) n =
-    DiscreteLaplaceSampleLoopIn1Aux t (n, true) * (∑' (a : ℕ), DiscreteLaplaceSampleLoopIn1Aux t (a, true))⁻¹ := by
+    (DiscreteLaplaceSampleLoopIn1 t) n =
+      DiscreteLaplaceSampleLoopIn1Aux t (n, true) *
+        (∑' (a : ℕ), DiscreteLaplaceSampleLoopIn1Aux t (a, true))⁻¹ := by
   simp only [DiscreteLaplaceSampleLoopIn1, Bind.bind, Pure.pure, SLang.bind_apply, SLang.pure_apply]
-  conv =>
-    left
-    arg 1
-    intro a
-    rw [probUntil_apply_norm _ _ _ (DiscreteLaplaceSampleLoopIn1Aux_normalizes t)]
+  simp_rw [probUntil_apply_norm _ _ _ (DiscreteLaplaceSampleLoopIn1Aux_normalizes t)]
   simp only [ENNReal.tsum_prod', ite_mul, zero_mul]
   rw [ENNReal.tsum_comm]
   simp only [tsum_bool, Bool.false_eq_true, ↓reduceIte, zero_add, tsum_zero]
-  rw [ENNReal.tsum_eq_add_tsum_ite n]
-  simp only [↓reduceIte, mul_one]
-  have A : ∀ x, (@ite ENNReal (x = n) (Classical.propDecidable (x = n)) 0
-            (DiscreteLaplaceSampleLoopIn1Aux t (x, true) * (∑' (b : ℕ), DiscreteLaplaceSampleLoopIn1Aux t (b, true))⁻¹ *
-            @ite ENNReal (n = x) (Classical.propDecidable (n = (x, true).1)) 1 0)) = 0 := by
-    intro x
-    split
-    · simp only
-    · split
-      · rename_i h1 h2
-        subst h2
-        contradiction
-      · simp only [mul_zero]
-  conv =>
-    left
-    right
-    arg 1
-    intro x
-    rw [A]
-  clear A
-  simp only [tsum_zero, add_zero]
+  rw [tsum_eq_single n (by
+    intro x hx
+    simp [Ne.symm hx])]
+  simp
 
 theorem DiscreteLaplaceSampleLoopIn1_apply (t : PNat) (n : ℕ) (support : n < t) :
-  (DiscreteLaplaceSampleLoopIn1 t) n = (ENNReal.ofReal ((rexp (-ENNReal.toReal (n / t))) * ((1 - rexp (- 1 / t)) / (1 - rexp (- 1))))) := by
-  rw [DiscreteLaplaceSampleLoopIn1_apply_pre]
-  rw [DiscreteLaplaceSampleLoopIn1Aux_apply_true]
+    (DiscreteLaplaceSampleLoopIn1 t) n =
+      ENNReal.ofReal ((rexp (-ENNReal.toReal (n / t))) *
+        ((1 - rexp (- 1 / t)) / (1 - rexp (- 1)))) := by
+  rw [DiscreteLaplaceSampleLoopIn1_apply_pre, DiscreteLaplaceSampleLoopIn1Aux_apply_true]
   simp only [support, ↓reduceIte]
-  conv =>
-    left
-    right
-    right
-    arg 1
-    intro a
-    rw [DiscreteLaplaceSampleLoopIn1Aux_apply_true]
-
+  simp_rw [DiscreteLaplaceSampleLoopIn1Aux_apply_true]
   rw [← Summable.sum_add_tsum_nat_add' (k := (t : ℕ)) ENNReal.summable]
-  have B : ∀ i : ℕ, (@ite ENNReal (i + ↑t < ↑t) (decLt (i + ↑t) ↑t) ((ENNReal.ofReal (rexp (- (↑(i + ↑t) / ↑↑t)))) / ↑↑t) 0) = 0 := by
+  have hzero : ∀ i : ℕ,
+      (if (i + (t : ℕ) < (t : ℕ))
+        then ENNReal.ofReal (rexp (-((↑(i + ↑t) : ℝ) / ↑↑t))) / ↑↑t else (0 : ENNReal)) = 0 := by
     intro i
-    split
-    · rename_i h
-      simp only [add_lt_iff_neg_right, not_lt_zero'] at h
-    · simp only
-  conv =>
-    left
-    right
-    right
-    right
-    arg 1
-    intro i
-    rw [B]
-  clear B
-  simp only [tsum_zero, add_zero]
-
+    rw [if_neg (by omega)]
+  simp_rw [hzero, tsum_zero, add_zero]
   rw [sum_ite]
   simp only [mem_range, imp_self, forall_const, filter_true_of_mem, not_lt, not_le,
     filter_false_of_mem, sum_const_zero, add_zero]
-
-  conv =>
-    left
-    right
-    right
-    right
-    intro x
-    rw [division_def]
-
-  have A := @sum_mul ℕ ENNReal _ (Finset.range t) (fun x => ENNReal.ofReal (rexp (- (↑x / ↑↑t)))) ((↑↑t)⁻¹)
-  rw [← A]
-  clear A
-
+  conv_lhs => right; right; right; intro x; rw [division_def]
+  rw [← Finset.sum_mul]
   rw [ENNReal.ofReal_mul (exp_nonneg (-ENNReal.toReal (↑n / ↑↑t)))]
   rw [division_def]
   rw [mul_assoc]
   congr
-
   · rw [ENNReal.toReal_div]
     simp only [ENNReal.toReal_natCast]
-
-  · have A : ∀ i ∈ range t, 0 ≤ rexp (- (i / t)) := by
-      intro i _
-      apply exp_nonneg (-(↑i / ↑↑t))
-
-    rw [← ENNReal.ofReal_sum_of_nonneg A]
-    clear A
-
-    have A : rexp (- 1 / t) ≠ 1 := by
-      rw [← Real.exp_zero]
-      by_contra h
-      simp only [exp_zero, exp_eq_one_iff, div_eq_zero_iff, neg_eq_zero, one_ne_zero, cast_eq_zero,
-        PNat.ne_zero, or_self] at h
-    have X := @geom_sum_Ico' ℝ _ (rexp (- 1 / t)) A 0 t (Nat.zero_le t)
-    simp only [Ico_zero_eq_range, _root_.pow_zero] at X
-    rw [← exp_nat_mul] at X
-    rw [mul_div_cancel₀ _ (NeZero.natCast_ne ↑t ℝ)] at X
-
-    conv =>
-      left
-      right
-      right
-      left
-      right
-      right
-      intro i
-      rw [division_def]
-      rw [neg_mul_eq_mul_neg]
-      rw [Real.exp_nat_mul]
-      rw [inv_eq_one_div]
-      rw [neg_div']
-
-    rw [X]
-    clear X
-    rw [ENNReal.mul_inv]
-    · rw [mul_comm]
-      rw [mul_assoc]
-      rw [ENNReal.inv_mul_cancel]
-      · rw [← ENNReal.ofReal_inv_of_pos]
-        · rw [inv_div]
-          simp only [mul_one]
-        · apply _root_.div_pos
-          · rw [Real.exp_neg]
-            simp only [sub_pos]
-            rw [inv_lt_one_iff₀]
-            right
-            rw [one_lt_exp_iff]
-            simp only [zero_lt_one]
-          · simp only [sub_pos, exp_lt_one_iff]
-            rw [← neg_div']
-            simp only [one_div, Left.neg_neg_iff, inv_pos, cast_pos, PNat.pos]
-      · simp only [ne_eq, ENNReal.inv_eq_zero, ENNReal.natCast_ne_top, not_false_eq_true]
-      · simp only [ne_eq, ENNReal.inv_eq_top, cast_eq_zero, PNat.ne_zero, not_false_eq_true]
-    · simp only [ne_eq, ENNReal.ofReal_eq_zero, not_le, ENNReal.inv_eq_top, cast_eq_zero,
-      PNat.ne_zero, not_false_eq_true, or_true]
-    · simp only [ne_eq, ENNReal.ofReal_ne_top, not_false_eq_true, ENNReal.inv_eq_zero,
-      ENNReal.natCast_ne_top, or_self]
+  have hsum_nn : ∀ i ∈ range t, 0 ≤ rexp (- (i / t)) :=
+    fun i _ => exp_nonneg _
+  rw [← ENNReal.ofReal_sum_of_nonneg hsum_nn]
+  have hne : rexp (-1 / (t : ℝ)) ≠ 1 := by
+    rw [← Real.exp_zero]
+    by_contra h
+    simp only [exp_zero, exp_eq_one_iff, div_eq_zero_iff, neg_eq_zero, one_ne_zero, cast_eq_zero,
+      PNat.ne_zero, or_self] at h
+  have hgeom := @geom_sum_Ico' ℝ _ (rexp (-1 / (t : ℝ))) hne 0 t (Nat.zero_le t)
+  simp only [Ico_zero_eq_range, _root_.pow_zero] at hgeom
+  rw [← exp_nat_mul, mul_div_cancel₀ _ (NeZero.natCast_ne ↑t ℝ)] at hgeom
+  have hpow_eq : ∀ i : ℕ, rexp (-((i : ℝ) / (t : ℝ))) = rexp (-1 / (t : ℝ)) ^ i := by
+    intro i
+    rw [← Real.exp_nat_mul]
+    congr 1
+    field_simp
+  simp_rw [hpow_eq]
+  rw [hgeom]
+  rw [ENNReal.mul_inv]
+  · have hpos : (0 : ℝ) < (1 - rexp (-1)) / (1 - rexp (-1 / ↑↑t)) := by
+      apply _root_.div_pos
+      · rw [Real.exp_neg]
+        simp only [sub_pos]
+        rw [inv_lt_one_iff₀]; right
+        rw [one_lt_exp_iff]; exact zero_lt_one
+      · simp only [sub_pos, exp_lt_one_iff]
+        rw [← neg_div']
+        simp [cast_pos, PNat.pos]
+    rw [mul_comm, mul_assoc]
+    rw [ENNReal.inv_mul_cancel (by simp) (by simp)]
+    rw [← ENNReal.ofReal_inv_of_pos hpos, inv_div, mul_one]
+  · right; simp
+  · right; simp
 
 @[simp]
 theorem DiscreteLaplaceSampleLoopIn2_eq (num : Nat) (den : PNat) :
@@ -310,287 +181,158 @@ theorem DiscreteLaplaceSampleLoopIn2_eq (num : Nat) (den : PNat) :
 
 @[simp]
 theorem DiscreteLaplaceSampleLoop_apply (num : PNat) (den : PNat) (n : ℕ) (b : Bool) :
-  (DiscreteLaplaceSampleLoop num den) (b,n)
-    = ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))) ^ n * (1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) * ((2 : ℕ+): ENNReal)⁻¹ := by
-  simp [DiscreteLaplaceSampleLoop]
-  rw [ENNReal.tsum_eq_add_tsum_ite (n + 1)]
-  simp only [add_eq_zero, one_ne_zero, and_false, ↓reduceIte, add_tsub_cancel_right, and_true]
-  have A : ∀ x, (@ite ENNReal (x = n + 1) (Classical.propDecidable (x = n + 1)) 0
-      (@ite ENNReal (x = 0) (instDecidableEqNat x 0) 0
-  (ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))) ^ (x - 1) * (1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) *
-    ((@ite ENNReal (b = true ∧ n = x - 1) instDecidableAnd 2⁻¹ 0 : ENNReal) + @ite ENNReal (b = false ∧ n = x - 1) instDecidableAnd 2⁻¹ 0 : ENNReal))) ) = 0 := by
-    intro x
-    split
-    · simp only
-    · split
-      · simp only
-      · split
-        · split
-          · rename_i h1 h2 h3 h4
-            cases h3
-            cases h4
-            rename_i h5 h6 h7 h8
-            subst h7
-            contradiction
-          · rename_i h1 h2 h3 h4
-            cases h3
-            simp only [not_and] at h4
-            rename_i h5 h6
-            subst h6
-            have B : x = x - 1 + 1 := by
-              exact (succ_pred h2).symm
-            contradiction
-        · split
-          · rename_i h1 h2 h3 h4
-            cases h4
-            rename_i h5 h6
-            subst h6
-            have B : x = x - 1 + 1 := by
-              exact (succ_pred h2).symm
-            contradiction
-          · rename_i h1 h2 h3 h4
-            simp only [not_and, add_zero, mul_zero] at *
-
-  conv =>
-    left
-    right
-    arg 1
-    intro x
-    rw [A]
-  clear A
-
-  simp only [tsum_zero, add_zero]
-  congr
-  cases b
-  · simp
-  · simp
+    (DiscreteLaplaceSampleLoop num den) (b, n)
+      = ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))) ^ n *
+          (1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) * ((2 : ℕ+) : ENNReal)⁻¹ := by
+  simp only [DiscreteLaplaceSampleLoop, Bind.bind, Pure.pure, SLang.bind_apply, SLang.pure_apply,
+    DiscreteLaplaceSampleLoopIn2_eq, tsum_bool, Prod.mk.injEq, mul_ite, mul_one, mul_zero]
+  rw [tsum_eq_single (n + 1)]
+  · simp only [probGeometric_apply, add_eq_zero, one_ne_zero, and_false, ↓reduceIte,
+      add_tsub_cancel_right, and_true]
+    cases b <;> simp
+  · intro x hx
+    by_cases hx0 : x = 0
+    · simp [hx0]
+    · have hxm : x = x - 1 + 1 := (Nat.succ_pred hx0).symm
+      have hne : x - 1 ≠ n := by rintro rfl; exact hx hxm
+      simp [hx0, Ne.symm hne]
 
 @[simp]
 theorem ite_simpl_1 (x y : ℕ) (a : ENNReal) : ite (x = y) 0 (ite (y = x) a 0) = 0 := by
-  split
-  · simp
-  · rename_i h
-    simp
-    intro h
-    subst h
-    contradiction
+  by_cases h : x = y
+  · simp [h]
+  · simp [h, Ne.symm h]
 
 @[simp]
 theorem ite_simpl_2 (x y : ℕ) (a : ENNReal) : ite (x = 0) 0 (ite ((y : ℤ) = -(x : ℤ)) a 0) = 0 := by
-  split
-  · simp
-  · split
-    · rename_i h1 h2
-      have A : (y : ℤ) ≥ 0 := Int.NonNeg.mk (y + 0)
-      rw [h2] at A
-      simp at *
-      subst A
-      contradiction
-    · simp
+  by_cases hx : x = 0
+  · simp [hx]
+  · by_cases hyx : (y : ℤ) = -(x : ℤ)
+    · have : (x : ℤ) ≤ 0 := by omega
+      have : x = 0 := by omega
+      exact absurd this hx
+    · simp [hx, hyx]
 
 @[simp]
 theorem ite_simpl_3 (x y : ℕ) (a : ENNReal) : ite (x = y + 1) 0 (ite (x = 0) 0 (ite (y = x - 1) a 0)) = 0 := by
-  split
-  · simp
-  · split
-    · simp
-    · split
-      · rename_i h1 h2 h3
-        subst h3
-        cases x
-        · contradiction
-        · simp at h1
-      · simp
+  by_cases h1 : x = y + 1
+  · simp [h1]
+  · by_cases h2 : x = 0
+    · simp [h2]
+    · by_cases h3 : y = x - 1
+      · have : x = y + 1 := by omega
+        exact absurd this h1
+      · simp [h1, h2, h3]
 
 @[simp]
 theorem ite_simpl_4 (x y : ℕ) (a : ENNReal) : ite ((x : ℤ) = - (y : ℤ)) (ite (y = 0) 0 a) 0 = 0 := by
-  split
-  · split
-    · simp
-    · rename_i h1 h2
-      have B : (y : ℤ) ≥ 0 := by exact Int.NonNeg.mk (y + 0)
-      have C : -(y : ℤ) ≥ 0 := by exact le_iff_exists_sup.mpr (Exists.intro (Int.ofNat x) (id h1.symm))
-      cases y
-      · contradiction
-      · rename_i n
-        simp at C
-        contradiction
-  · simp
+  by_cases hy : y = 0
+  · subst hy; simp
+  · by_cases hxy : (x : ℤ) = -(y : ℤ)
+    · have : (y : ℤ) ≤ 0 := by omega
+      have : y = 0 := by omega
+      exact absurd this hy
+    · simp [hxy]
 
 @[simp]
 theorem ite_simpl_5 (n c : ℕ) (a : ENNReal) (h : n ≠ 0) : ite (- (n : ℤ) = (c : ℤ)) a 0 = 0 := by
-  split
-  · rename_i h'
-    have A : (n : ℤ) ≥ 0 := by exact Int.NonNeg.mk (n + 0)
-    have B : -(n : ℤ) ≥ 0 := by exact le_iff_exists_sup.mpr (Exists.intro (Int.ofNat c) h')
-    cases n
-    · contradiction
-    · rename_i n
-      simp at B
-      contradiction
-  · simp
+  have : -(n : ℤ) ≠ (c : ℤ) := by
+    intro heq
+    have : (n : ℤ) = 0 := by omega
+    exact h (by exact_mod_cast this)
+  simp [this]
 
 @[simp]
 theorem DiscreteLaplaceSampleLoop_normalizes (num : PNat) (den : PNat) :
-  (∑' x, (DiscreteLaplaceSampleLoop num den) x) = 1 := by
-  simp only [DiscreteLaplaceSampleLoop, Bind.bind, DiscreteLaplaceSampleLoopIn2_eq, Pure.pure,
-    SLang.bind_apply,
-    SLang.pure_apply, tsum_bool, ENNReal.tsum_prod',
-    Prod.mk.injEq, mul_ite, mul_one, mul_zero, true_and]
-  conv =>
-    left
-    left
-    arg 1
-    intro b
-    rw [ENNReal.tsum_eq_add_tsum_ite 0]
-    rw [ENNReal.tsum_eq_add_tsum_ite (b + 1)]
-    right
-    right
-    simp
-  conv =>
-    left
-    right
-    arg 1
-    intro b
-    rw [ENNReal.tsum_eq_add_tsum_ite 0]
-    rw [ENNReal.tsum_eq_add_tsum_ite (b + 1)]
-    right
-    right
-    simp
-
-  simp only [add_tsub_cancel_right, ↓reduceIte,  add_eq_zero, one_ne_zero,
-    and_false]
-
-  simp only [add_zero]
-
-  have A : probGeometric (BernoulliExpNegSample (↑den) num) 0 = 0 := by simp
-  rw [A]
-  simp only [_root_.zero_le, tsub_eq_zero_of_le,
-    zero_mul,
-     zero_add]
-
-  rw [ENNReal.tsum_mul_right]
-  rw [ENNReal.tsum_mul_right]
-  rw [← mul_add]
-  have A : ∀ h : (1 : ℕ) ≤ 2, BernoulliSample 1 2 h false + BernoulliSample 1 2 h true = 1 := by
+    (∑' x, (DiscreteLaplaceSampleLoop num den) x) = 1 := by
+  have hBernNorm : ∀ h : (1 : ℕ) ≤ 2,
+      BernoulliSample 1 2 h false + BernoulliSample 1 2 h true = 1 := by
     intro h
     have H := BernoulliSample_normalizes' 1 2 h
-    simp only [Fintype.univ_bool, mem_singleton,
-      not_false_eq_true, Finset.sum_insert, sum_singleton,
-      Finset.mem_singleton, Bool.true_eq_false] at H
+    simp only [Fintype.univ_bool, mem_singleton, not_false_eq_true, Finset.sum_insert,
+      sum_singleton, Finset.mem_singleton, Bool.true_eq_false] at H
     rw [add_comm]; exact H
-  simp only [Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte,
-    add_zero, zero_add, and_true]
-  rw [A]
-  clear A
-  rw [mul_one]
+  simp only [DiscreteLaplaceSampleLoop, Bind.bind, DiscreteLaplaceSampleLoopIn2_eq, Pure.pure,
+    SLang.bind_apply, SLang.pure_apply, tsum_bool, ENNReal.tsum_prod', Prod.mk.injEq, mul_ite,
+    mul_one, mul_zero, true_and]
+  conv_lhs =>
+    congr
+    · arg 1; intro b
+      rw [ENNReal.tsum_eq_add_tsum_ite 0, ENNReal.tsum_eq_add_tsum_ite (b + 1)]
+      right; right; simp
+    · arg 1; intro b
+      rw [ENNReal.tsum_eq_add_tsum_ite 0, ENNReal.tsum_eq_add_tsum_ite (b + 1)]
+      right; right; simp
+  simp only [add_tsub_cancel_right, ↓reduceIte, add_eq_zero, one_ne_zero, and_false, add_zero]
+  have hGeo0 : probGeometric (BernoulliExpNegSample (↑den) num) 0 = 0 := by simp
+  rw [hGeo0]
+  simp only [_root_.zero_le, tsub_eq_zero_of_le, zero_mul, zero_add]
+  rw [ENNReal.tsum_mul_right, ENNReal.tsum_mul_right, ← mul_add]
+  simp only [Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte, add_zero, zero_add, and_true]
+  rw [hBernNorm, mul_one]
   apply probGeometric_normalizes'
   · have A := BernoulliExpNegSample_normalizes den num
     rw [tsum_bool] at A
     trivial
   · simp
 
-theorem avoid_double_counting (num den : PNat) :
-  (∑' (x : Bool × ℕ), if x.1 = true → ¬x.2 = 0 then DiscreteLaplaceSampleLoop num den x else 0)
-    = (((2 : ℕ+) : ENNReal))⁻¹ * (1 + ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) := by
-  simp only [ENNReal.tsum_prod', DiscreteLaplaceSampleLoop_apply, tsum_bool, IsEmpty.forall_iff,
-    ↓reduceIte, forall_true_left, ite_not, Bool.false_eq_true]
-  rw [ENNReal.tsum_mul_right]
-  rw [ENNReal.tsum_mul_right]
-  rw [tsum_shift'_1]
-  rw [ENNReal.tsum_mul_right]
-  rw [ENNReal.tsum_mul_right]
-  rw [mul_comm]
-  conv =>
-    left
-    right
-    rw [mul_comm]
-  rw [← mul_add]
-  conv =>
-    left
-    right
-    rw [mul_comm]
-  conv =>
-    left
-    right
-    right
-    rw [mul_comm]
-  rw [← mul_add]
+theorem avoid_double_counting_algebra (r c : ENNReal) (hr_ne_one : 1 - r ≠ 0)
+    (hr_ne_top : 1 - r ≠ ⊤) :
+    (∑' n : ℕ, r ^ n * (1 - r) * c) + (∑' n : ℕ, r ^ (n + 1) * (1 - r) * c) = c * (1 + r) := by
+  simp_rw [pow_succ, mul_assoc _ r _, mul_comm r _, ← mul_assoc, ENNReal.tsum_mul_right,
+    ENNReal.tsum_geometric]
+  have hcancel : (1 - r)⁻¹ * (1 - r) = 1 :=
+    ENNReal.inv_mul_cancel hr_ne_one hr_ne_top
+  rw [show (1 - r)⁻¹ * (1 - r) * c = c by rw [hcancel, one_mul]]
+  rw [show (1 - r)⁻¹ * (1 - r) * r * c = c * r by
+    rw [hcancel, one_mul, mul_comm]]
+  rw [mul_add, mul_one]
 
-  rw [ENNReal.tsum_geometric]
-  conv =>
-    left
-    right
-    right
-    right
-    arg 1
-    intro i
-    rw [pow_add]
-  rw [ENNReal.tsum_mul_right]
-  rw [ENNReal.tsum_geometric]
-  rw [mul_add]
-  have B : (1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) ≠ 0 := by
-    simp only [ne_eq, tsub_eq_zero_iff_le, ENNReal.one_le_ofReal, one_le_exp_iff,
-      Left.nonneg_neg_iff, not_le]
-    rw [div_pos_iff]
-    left
-    simp only [cast_pos, PNat.pos, and_self]
-  have C : (1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) ≠ ⊤ := by
-    simp only [ne_eq, ENNReal.sub_eq_top_iff, ENNReal.one_ne_top, ENNReal.ofReal_ne_top,
-      not_false_eq_true, and_true]
-  conv =>
-    left
-    right
-    left
-    rw [mul_comm]
-  rw [ENNReal.inv_mul_cancel B C]
-  conv =>
-    left
-    right
-    right
-    rw [← mul_assoc]
-    left
-    rw [mul_comm]
-  rw [ENNReal.inv_mul_cancel B C]
-  rw [one_mul]
-  rw [pow_one]
+theorem avoid_double_counting (num den : PNat) :
+    (∑' (x : Bool × ℕ),
+        if x.1 = true → ¬x.2 = 0 then DiscreteLaplaceSampleLoop num den x else 0)
+      = (((2 : ℕ+) : ENNReal))⁻¹ * (1 + ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) := by
+  have hr_lt_one : ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))) < 1 := by
+    apply ENNReal.ofReal_lt_one.mpr
+    rw [exp_lt_one_iff, neg_lt_zero]
+    exact _root_.div_pos (cast_pos.mpr (PNat.pos _)) (cast_pos.mpr (PNat.pos _))
+  have hr_ne_one : 1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))) ≠ 0 :=
+    (tsub_pos_of_lt hr_lt_one).ne'
+  have hr_ne_top : 1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))) ≠ ⊤ :=
+    ENNReal.sub_ne_top (by simp)
+  simp only [ENNReal.tsum_prod', DiscreteLaplaceSampleLoop_apply, tsum_bool, IsEmpty.forall_iff,
+    forall_true_left, ite_not, Bool.false_eq_true, ↓reduceIte]
+  rw [tsum_shift'_1]
+  exact avoid_double_counting_algebra _ _ hr_ne_one hr_ne_top
 
 theorem laplace_normalizer_swap (num den : ℕ+) :
-  (1 - rexp (-(↑↑den / ↑↑num))) * (1 + rexp (-(↑↑den / ↑↑num)))⁻¹ =
-  (rexp (↑↑den / ↑↑num) - 1) * (rexp (↑↑den / ↑↑num) + 1)⁻¹ := by
+    (1 - rexp (-(↑↑den / ↑↑num))) * (1 + rexp (-(↑↑den / ↑↑num)))⁻¹ =
+      (rexp (↑↑den / ↑↑num) - 1) * (rexp (↑↑den / ↑↑num) + 1)⁻¹ := by
+  have hA : rexp (↑↑den / ↑↑num) + 1 ≠ 0 :=
+    (Right.add_pos_of_nonneg_of_pos (exp_nonneg _) one_pos).ne'
+  have hB : 1 + rexp (-(↑↑den / ↑↑num)) ≠ 0 :=
+    (Right.add_pos_of_pos_of_nonneg one_pos (exp_nonneg _)).ne'
+  have hprod : rexp (↑↑den / ↑↑num) * rexp (-(↑↑den / ↑↑num)) = 1 := by
+    rw [← exp_add]; simp
+  rw [← div_eq_mul_inv, ← div_eq_mul_inv, div_eq_div_iff hB hA]
+  nlinarith [hprod]
 
-  have X : 0 ≤ rexp (-(↑↑den / ↑↑num)) := by apply exp_nonneg (-(↑↑den / ↑↑num))
-  have Y : 0 ≤ rexp ((↑↑den / ↑↑num)) := by apply exp_nonneg ((↑↑den / ↑↑num))
+theorem DiscreteLaplaceSample_one_sub_exp_nonneg (num den : PNat) :
+    (0 : ℝ) ≤ 1 - rexp (-(↑↑den / ↑↑num)) := by
+  simp only [sub_nonneg, exp_le_one_iff, Left.neg_nonpos_iff]
+  exact div_nonneg (cast_nonneg _) (cast_nonneg _)
 
-  have A : rexp (↑↑den / ↑↑num) + 1 ≠ 0 := by
-    apply _root_.ne_of_gt
-    apply Right.add_pos_of_nonneg_of_pos Y
-    simp
-  have B : 1 + rexp (-(↑↑den / ↑↑num)) ≠ 0 := by
-    apply _root_.ne_of_gt
-    apply Right.add_pos_of_pos_of_nonneg _ X
-    simp
+theorem DiscreteLaplaceSample_one_add_exp_pos (num den : PNat) :
+    (0 : ℝ) < 1 + rexp (-(↑↑den / ↑↑num)) :=
+  Right.add_pos_of_pos_of_nonneg one_pos (exp_nonneg _)
 
-  rw [← division_def]
-  rw [div_eq_iff B]
-  rw [mul_comm]
-  rw [← mul_assoc]
-  rw [← division_def]
+theorem DiscreteLaplaceSample_swap_mul_nonneg (num den : PNat) :
+    (0 : ℝ) ≤ (rexp (↑↑den / ↑↑num) - 1) * (rexp (↑↑den / ↑↑num) + 1)⁻¹ := by
+  apply mul_nonneg
+  · simp only [sub_nonneg, one_le_exp_iff]
+    exact div_nonneg (cast_nonneg _) (cast_nonneg _)
+  · exact inv_nonneg.mpr (Right.add_nonneg (exp_nonneg _) zero_le_one)
 
-  apply Eq.symm
-  rw [div_eq_iff A]
-
-  rw [mul_add]
-  rw [_root_.sub_mul]
-  rw [_root_.sub_mul]
-  rw [add_mul]
-  rw [_root_.mul_sub]
-  rw [_root_.mul_sub]
-
-  simp only [one_mul, mul_one]
-
-  rw [← exp_add]
-  simp
 
 /--
 Closed form for the evaluation of the ``SLang`` Laplace sampler.
@@ -598,323 +340,114 @@ Closed form for the evaluation of the ``SLang`` Laplace sampler.
 @[simp]
 theorem DiscreteLaplaceSample_apply (num den : PNat) (x : ℤ) :
   (DiscreteLaplaceSample num den) x = ENNReal.ofReal (((exp (1/((num : NNReal) / (den : NNReal))) - 1) / (exp (1/((num : NNReal) / (den : NNReal))) + 1)) * (exp (- (abs x / ((num : NNReal) / (den : NNReal)))))) := by
+  have hA : 0 ≤ rexp (-(↑↑den / ↑↑num)) := exp_nonneg _
+  have hB : 0 ≤ rexp (↑↑den / ↑↑num) := exp_nonneg _
+  have hsub_nn := DiscreteLaplaceSample_one_sub_exp_nonneg num den
+  have hadd_pos := DiscreteLaplaceSample_one_add_exp_pos num den
+  have hswap_nn := DiscreteLaplaceSample_swap_mul_nonneg num den
+  have h2ne0 : ((2 : ℕ+) : ENNReal) ≠ 0 := by simp
+  have h2netop : ((2 : ℕ+) : ENNReal) ≠ ⊤ := by simp
   simp only [DiscreteLaplaceSample, Bind.bind, not_and, Pure.pure, SLang.bind_apply,
     ENNReal.tsum_prod', tsum_bool, ↓reduceIte,
     SLang.pure_apply, mul_ite, mul_one,
     mul_zero, one_div, Int.cast_abs]
+  have hfinish : ∀ n : ℕ,
+      ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))) ^ n *
+          (1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num)))) * ((2 : ℕ+) : ENNReal)⁻¹ *
+          (((2 : ℕ+) : ENNReal) * (1 + ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))))⁻¹) =
+        ENNReal.ofReal ((rexp (↑↑den / ↑↑num) - 1) / (rexp (↑↑den / ↑↑num) + 1) *
+          rexp (-((n : ℝ) / (↑↑num / ↑↑den)))) := by
+    intro n
+    rw [mul_assoc _ ((2 : ℕ+) : ENNReal)⁻¹ _, ← mul_assoc ((2 : ℕ+) : ENNReal)⁻¹ _ _,
+      ENNReal.inv_mul_cancel h2ne0 h2netop, one_mul]
+    rw [ENNReal.ofReal_one.symm, ← ENNReal.ofReal_add zero_le_one hA,
+      ← ENNReal.ofReal_sub _ hA, ← ENNReal.ofReal_inv_of_pos hadd_pos]
+    rw [mul_assoc, ← ENNReal.ofReal_mul hsub_nn, ← ENNReal.ofReal_pow hA,
+      ← ENNReal.ofReal_mul (pow_nonneg hA n)]
+    have hpow : rexp (-((n : ℝ) / (↑↑num / ↑↑den))) = rexp (-(↑↑den / ↑↑num)) ^ n := by
+      rw [div_div_eq_mul_div, ← exp_nat_mul]
+      congr 1
+      field_simp
+    rw [hpow]
+    rw [show (rexp (↑↑den / ↑↑num) - 1) / (rexp (↑↑den / ↑↑num) + 1)
+        = (1 - rexp (-(↑↑den / ↑↑num))) * (1 + rexp (-(↑↑den / ↑↑num)))⁻¹ from by
+      rw [division_def, ← laplace_normalizer_swap num den]]
+    exact congrArg _ (by ring)
   rw [show |(x : ℝ)| = ‖((x : ℝ) : ℂ)‖ from (Complex.norm_real _).symm]
-
-  have OR : x ≥ 0 ∨ x < 0 := by exact le_or_gt 0 x
-  cases OR
-  · rename_i h1
-    lift x to ℕ using h1
-    conv =>
-      left
-      left
-      rw [ENNReal.tsum_eq_add_tsum_ite x]
-
+  rcases le_or_gt 0 x with h1 | h1
+  · lift x to ℕ using h1
+    conv => left; left; rw [ENNReal.tsum_eq_add_tsum_ite x]
     simp only [DiscreteLaplaceSampleLoop_normalizes, probUntil_apply_norm]
     simp (config := { contextual := true }) only [↓reduceIte, IsEmpty.forall_iff, decide_true,
       DiscreteLaplaceSampleLoop_apply, decide_eq_true_eq, Nat.cast_inj, ite_simpl_1, tsum_zero,
       add_zero, forall_true_left, decide_not, Bool.not_eq_true', decide_eq_false_iff_not, ite_not,
       ite_mul, zero_mul, ite_simpl_4, NNReal.coe_natCast, inv_div,
       Bool.false_eq_true]
-    conv =>
-      right
-      simp only [PNat.val_ofNat, reduceSucc, cast_ofNat, Int.cast_natCast, Complex.ofReal_natCast,
-        Complex.norm_natCast]
-    conv =>
-      right
-      right
-      left
-      rw [division_def]
-    rw [avoid_double_counting]
-    rw [ENNReal.mul_inv]
-    · simp only [inv_inv]
-
-      have A : 0 ≤ rexp (-(↑↑den / ↑↑num)) := by apply exp_nonneg (-(↑↑den / ↑↑num))
-      have B : 0 ≤ rexp ((↑↑den / ↑↑num)) := by apply exp_nonneg ((↑↑den / ↑↑num))
-
-      -- Start of first rewrite
-
-      rw [ENNReal.ofReal_mul]
-      conv =>
-        right
-        rw [mul_comm]
-        left
-        right
-        rw [division_def]
-        rw [neg_mul_eq_mul_neg]
-        rw [exp_nat_mul]
-        rw [inv_div]
-
-      rw [ENNReal.ofReal_pow]
-
-      conv =>
-        left
-        left
-        rw [mul_assoc]
-      conv =>
-        left
-        rw [mul_assoc]
-
-      congr
-
-      --end of first rewrite
-
-      have X : ((2 : ℕ+) : ENNReal) ≠ 0 := by simp
-      have Y : ((2 : ℕ+) : ENNReal) ≠ ⊤ := by simp
-
-      rw [mul_assoc (1 - ENNReal.ofReal (rexp (-(↑↑den / ↑↑num))))
-         (((2 : ℕ+) : ENNReal))⁻¹ _]
-      rw [← mul_assoc (((2 : ℕ+) : ENNReal))⁻¹ _ _]
-      rw [ENNReal.inv_mul_cancel X Y]
-      rw [one_mul]
-      clear X Y
-
-      -- end of second rewrite
-
-      rw [ENNReal.ofReal_one.symm]
-      rw [← ENNReal.ofReal_add]
-      rw [← ENNReal.ofReal_sub]
-      rw [← ENNReal.ofReal_inv_of_pos]
-      rw [← ENNReal.ofReal_mul]
-
-      congr 1
-
-      -- end of 3rd rewrite
-      rw [laplace_normalizer_swap]
-
-      · simp only [sub_nonneg, exp_le_one_iff, Left.neg_nonpos_iff]
-        rw [div_nonneg_iff]
-        left
-        simp only [cast_nonneg, and_self]
-      · refine Right.add_pos_of_pos_of_nonneg ?inl.intro.e_a.ha A
-        simp only [zero_lt_one] -- 0 < 1 + rexp (-(↑↑den / ↑↑num))
-      · exact A
-      · simp only [zero_le_one] -- 0 ≤ 1
-      · exact A
-      · exact A
-      · have X : 0 ≤ (rexp (↑↑den / ↑↑num) - 1) := by
-          simp only [sub_nonneg, one_le_exp_iff]
-          rw [div_nonneg_iff]
-          left
-          simp only [cast_nonneg, and_self]
-        have Y : 0 ≤ (rexp (↑↑den / ↑↑num) + 1)⁻¹ := by
-          rw [inv_nonneg]
-          refine Right.add_nonneg B ?hb
-          simp only [zero_le_one]
-        exact mul_nonneg X Y
-    · left
-      simp only [PNat.val_ofNat, cast_ofNat, ne_eq, ENNReal.inv_eq_zero,
-        ENNReal.ofNat_ne_top, not_false_eq_true]
-    · left
-      simp only [ne_eq, ENNReal.inv_eq_top, cast_eq_zero, PNat.ne_zero, not_false_eq_true]
-  · rename_i h1
-    have A : ∃ n : ℕ, - n = x := by
-      cases x
-      · contradiction
-      · rename_i a
-        exists (a + 1)
-    cases A
-    rename_i n h2
-    conv =>
-      left
-      right
-      rw [ENNReal.tsum_eq_add_tsum_ite n]
-
+    rw [avoid_double_counting, ENNReal.mul_inv (Or.inl (by simp)) (Or.inl (by simp))]
+    simp only [inv_inv]
+    have hnorm : ‖(((x : ℤ) : ℝ) : ℂ)‖ = ((x : ℕ) : ℝ) := by push_cast; simp
+    rw [hnorm]
+    exact hfinish x
+  · obtain ⟨n, h2⟩ : ∃ n : ℕ, - (n : ℤ) = x := by
+      cases x with
+      | ofNat _ => contradiction
+      | negSucc a => exact ⟨a + 1, by push_cast; omega⟩
+    conv => left; right; rw [ENNReal.tsum_eq_add_tsum_ite n]
     simp only [DiscreteLaplaceSampleLoop_normalizes, probUntil_apply_norm]
     subst h2
-    have X : n ≠ 0 := by
-      by_contra h
-      subst h
+    have hn0 : n ≠ 0 := by
+      rintro rfl
       simp only [CharP.cast_eq_zero, neg_zero, lt_self_iff_false] at h1
     simp (config := { contextual := true }) only [IsEmpty.forall_iff, decide_true, ↓reduceIte,
-      DiscreteLaplaceSampleLoop_apply, decide_eq_true_eq, ne_eq, X, not_false_eq_true, ite_simpl_5,
+      DiscreteLaplaceSampleLoop_apply, decide_eq_true_eq, ne_eq, hn0, not_false_eq_true, ite_simpl_5,
       tsum_zero, forall_true_left, neg_inj, Nat.cast_inj, decide_not, Bool.not_eq_true',
       decide_eq_false_iff_not, ite_not, ite_mul, zero_mul, ite_simpl_1, add_zero, zero_add,
-      NNReal.coe_natCast, inv_div, Int.cast_neg,
-      Bool.false_eq_true]
-    conv =>
-      right
-      simp only [PNat.val_ofNat, reduceSucc, cast_ofNat, Int.cast_natCast, Complex.ofReal_neg,
-        Complex.ofReal_natCast, map_neg_eq_map, Complex.norm_natCast]
-    conv =>
-      right
-      right
-      left
-      rw [division_def]
-    rw [avoid_double_counting]
-    rw [ENNReal.mul_inv]
-    · simp only [inv_inv]
-
-      have A : 0 ≤ rexp (-(↑↑den / ↑↑num)) := by apply exp_nonneg (-(↑↑den / ↑↑num))
-      have B : 0 ≤ rexp ((↑↑den / ↑↑num)) := by apply exp_nonneg ((↑↑den / ↑↑num))
-
-      rw [show ‖(-(n : ℂ))‖ = ((n : ℕ) : ℝ) from by rw [norm_neg, Complex.norm_natCast]]
-
-      -- Start of first rewrite
-
-      rw [ENNReal.ofReal_mul]
-      conv =>
-        right
-        rw [mul_comm]
-        left
-        right
-        rw [division_def]
-        rw [neg_mul_eq_mul_neg]
-        rw [exp_nat_mul]
-        rw [inv_div]
-
-      rw [ENNReal.ofReal_pow]
-
-      conv =>
-        left
-        left
-        rw [mul_assoc]
-      conv =>
-        left
-        rw [mul_assoc]
-
-      congr
-
-      --end of first rewrite
-
-      have X : ((2 : ℕ+) : ENNReal) ≠ 0 := by simp
-      have Y : ((2 : ℕ+) : ENNReal) ≠ ⊤ := by simp
-
-      rw [← mul_assoc]
-      conv =>
-        left
-        left
-        rw [mul_assoc]
-        right
-        rw [ENNReal.inv_mul_cancel X Y]
-
-      simp only [mul_one]
-
-      clear X Y
-
-      -- end of second rewrite
-
-      rw [ENNReal.ofReal_one.symm]
-      rw [← ENNReal.ofReal_add]
-      rw [← ENNReal.ofReal_sub]
-      rw [← ENNReal.ofReal_inv_of_pos]
-      rw [← ENNReal.ofReal_mul]
-
-      congr 1
-
-      rw [laplace_normalizer_swap]
-      · simp only [sub_nonneg, exp_le_one_iff, Left.neg_nonpos_iff]
-        rw [div_nonneg_iff]
-        left
-        simp only [cast_nonneg, and_self]
-      · apply Right.add_pos_of_pos_of_nonneg
-        simp only [zero_lt_one]
-        exact A
-      · exact A
-      · simp only [zero_le_one] -- 0 ≤ 1
-      · exact A
-      · exact A
-      · have X : 0 ≤ (rexp (↑↑den / ↑↑num) - 1) := by
-          simp only [sub_nonneg, one_le_exp_iff]
-          rw [div_nonneg_iff]
-          left
-          simp only [cast_nonneg, and_self]
-        have Y : 0 ≤ (rexp (↑↑den / ↑↑num) + 1)⁻¹ := by
-          rw [inv_nonneg]
-          refine Right.add_nonneg B ?hb
-          simp only [zero_le_one]
-        exact mul_nonneg X Y
-
-    · left
-      simp only [PNat.val_ofNat, cast_ofNat, ne_eq, ENNReal.inv_eq_zero,
-        ENNReal.ofNat_ne_top, not_false_eq_true]
-    · left
-      simp only [ne_eq, ENNReal.inv_eq_top, cast_eq_zero, PNat.ne_zero, not_false_eq_true]
+      NNReal.coe_natCast, inv_div, Int.cast_neg, Bool.false_eq_true]
+    rw [avoid_double_counting, ENNReal.mul_inv (Or.inl (by simp)) (Or.inl (by simp))]
+    simp only [inv_inv]
+    have hnorm : ‖(((-(n : ℤ)) : ℝ) : ℂ)‖ = ((n : ℕ) : ℝ) := by push_cast; simp
+    rw [hnorm]
+    exact hfinish n
 
 /--
 ``SLang`` Laplace sampler is a proper distribution.
 -/
 @[simp]
 theorem DiscreteLaplaceSample_normalizes (num den : PNat) :
-  ∑' x : ℤ, (DiscreteLaplaceSample num den) x = 1 := by
+    ∑' x : ℤ, (DiscreteLaplaceSample num den) x = 1 := by
+  have hloop_norm := DiscreteLaplaceSampleLoop_normalizes num den
   simp only [DiscreteLaplaceSample, Bind.bind, not_and, Pure.pure, SLang.bind_apply]
-  have A := DiscreteLaplaceSampleLoop_normalizes num den
-  conv =>
-    left
-    arg 1
-    intro x
-    arg 1
-    intro a
-    rw [probUntil_apply_norm _ _ _ A]
-  simp only [ENNReal.tsum_prod']
-
-  -- Commuting the integer and natural summand makes the proof simpler
+  simp_rw [probUntil_apply_norm _ _ _ hloop_norm, ENNReal.tsum_prod']
   rw [ENNReal.tsum_comm]
   conv =>
     left
     arg 1
     intro b
     rw [ENNReal.tsum_comm]
-
-  simp only [decide_eq_true_eq, tsum_bool, forall_true_left,
-    ite_not, ite_mul, zero_mul, SLang.pure_apply, mul_ite, mul_one, mul_zero, tsum_ite_eq]
-
-  have B : ∀ a, (@ite ENNReal (a = 0) (instDecidableEqNat a 0) 0
-  (DiscreteLaplaceSampleLoop num den (true, a) *
-    ((∑' (b : ℕ), if false = true → ¬b = 0 then DiscreteLaplaceSampleLoop num den (false, b) else 0) +
-        ∑' (b : ℕ), if b = 0 then 0 else DiscreteLaplaceSampleLoop num den (true, b))⁻¹))
-        = (@ite ENNReal (a = 0) (instDecidableEqNat a 0) 0
-    (DiscreteLaplaceSampleLoop num den (true, a))) * (((∑' (b : ℕ), if false = true → ¬b = 0 then DiscreteLaplaceSampleLoop num den (false, b) else 0) +
-        ∑' (b : ℕ), if b = 0 then 0 else DiscreteLaplaceSampleLoop num den (true, b))⁻¹) := by
-    intro a
-    simp
-
-  conv =>
-    left
-    right
-    arg 1
-    intro a
-    rw [B]
-  clear B
-
-  simp only [Bool.false_eq_true, false_imp_iff,
-    ↓reduceIte]
-  rw [ENNReal.tsum_mul_right]
-  rw [ENNReal.tsum_mul_right]
-  rw [← add_mul]
-
+  simp only [decide_eq_true_eq, tsum_bool, forall_true_left, ite_not, ite_mul, zero_mul,
+    SLang.pure_apply, mul_ite, mul_one, mul_zero, tsum_ite_eq]
+  have hfactor : ∀ a : ℕ, (if a = 0 then (0 : ENNReal)
+      else DiscreteLaplaceSampleLoop num den (true, a) *
+        ((∑' b : ℕ, if false = true → ¬b = 0 then DiscreteLaplaceSampleLoop num den (false, b) else 0)
+          + ∑' b : ℕ, if b = 0 then 0 else DiscreteLaplaceSampleLoop num den (true, b))⁻¹)
+      = (if a = 0 then 0 else DiscreteLaplaceSampleLoop num den (true, a)) *
+        ((∑' b : ℕ, if false = true → ¬b = 0 then DiscreteLaplaceSampleLoop num den (false, b) else 0)
+          + ∑' b : ℕ, if b = 0 then 0 else DiscreteLaplaceSampleLoop num den (true, b))⁻¹ := by
+    intro a; by_cases h : a = 0 <;> simp [h]
+  conv => left; right; arg 1; intro a; rw [hfactor]
+  simp only [Bool.false_eq_true, false_imp_iff, ↓reduceIte]
+  rw [ENNReal.tsum_mul_right, ENNReal.tsum_mul_right, ← add_mul]
   rw [ENNReal.mul_inv_cancel]
   · simp only [DiscreteLaplaceSampleLoop_apply, ne_eq, add_eq_zero, ENNReal.tsum_eq_zero,
-    _root_.mul_eq_zero, pow_eq_zero_iff', ENNReal.ofReal_eq_zero, tsub_eq_zero_iff_le,
-    ENNReal.one_le_ofReal, one_le_exp_iff, Left.nonneg_neg_iff, ENNReal.inv_eq_zero,
-    ENNReal.natCast_ne_top, or_false, ite_eq_left_iff, not_and, not_forall, exists_prop]
+      _root_.mul_eq_zero, pow_eq_zero_iff', ENNReal.ofReal_eq_zero, tsub_eq_zero_iff_le,
+      ENNReal.one_le_ofReal, one_le_exp_iff, Left.nonneg_neg_iff, ENNReal.inv_eq_zero,
+      ENNReal.natCast_ne_top, or_false, ite_eq_left_iff, not_and, not_forall, exists_prop]
     intro _
-    existsi 1
-    simp
-    apply exp_pos (-(↑↑den / ↑↑num))
-  · rw [← @ENNReal.tsum_add]
-    rw [ne_iff_lt_or_gt]
-    left
-    have B : (∑' (a : ℕ), (DiscreteLaplaceSampleLoop num den (false, a) + if a = 0 then 0 else DiscreteLaplaceSampleLoop num den (true, a))) ≤ (∑' (x : Bool × ℕ), DiscreteLaplaceSampleLoop num den x) := by
-      rw [ENNReal.tsum_prod']
-      rw [ENNReal.tsum_comm]
-      conv =>
-        right
-        arg 1
-        intro b
-        rw [tsum_bool]
-      apply ENNReal.tsum_le_tsum
-      intro a
-      split
-      · simp
-      · simp
-
-    have E : (∑' (x : Bool × ℕ), DiscreteLaplaceSampleLoop num den x) < ⊤ := by simp
-
-    apply LE.le.trans_lt B E
+    exact ⟨1, by simp [exp_pos]⟩
+  · refine ne_of_lt (lt_of_le_of_lt ?_ (by simp : (∑' (x : Bool × ℕ), DiscreteLaplaceSampleLoop num den x) < ⊤))
+    rw [← ENNReal.tsum_add, ENNReal.tsum_prod', ENNReal.tsum_comm]
+    simp_rw [tsum_bool]
+    exact ENNReal.tsum_le_tsum fun a => by split_ifs <;> simp
 
 
 /--
