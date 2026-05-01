@@ -62,9 +62,7 @@ theorem BernoulliExpNegSampleUnitAux_returns_false (num : ℕ) (den : ℕ+) (fue
 theorem BernoulliExpNegSampleUnitAux_ite_simpl (x r : ℕ+) (k : ENNReal) :
   @ite ENNReal (x = r + 1) (Classical.propDecidable (x = r + 1)) 0
   (if x = r + 1 then k else 0) = 0 := by
-  split
-  · simp
-  · simp
+  split_ifs <;> simp
 
 @[simp]
 theorem BernoulliExpNegSampleUnitAux_succ_true (num : ℕ) (den : ℕ+) (fuel : ℕ) (st : Bool × ℕ+) (r : ℕ+) (wf : num ≤ den) :
@@ -129,34 +127,12 @@ def plus_one (k : ℕ) : ℕ+ := ⟨ k + (1 : ℕ+) , Nat.add_pos_right k le.ref
 
 def plus_two (k fuel : ℕ) : ℕ+ := ⟨ fuel + k + 2 , Nat.add_pos_right (fuel + k) (le.step le.refl) ⟩
 
-@[simp]
-theorem plus_one_p1 (k e : ℕ) :
-  plus_one k + e = plus_one (k + e) := by
-  simp [plus_one]
-  conv =>
-    right
-    rw [add_assoc]
-    right
-    rw [add_comm]
-  conv =>
-    right
-    rw [← add_assoc]
-
 theorem plus_one_prop (k : ℕ) :
   plus_one k = k + 1 := by
   simp [plus_one]
 
-theorem plus_two_zero_prop (k : ℕ) :
-  plus_two k 0 = k + 2 := by
-  simp [plus_two]
-
-theorem nm2p2 (n : ℕ) (h : n > 1) :
-  n - 2 + 2 = n := by
-  exact Nat.sub_add_cancel h
-
 -- Warning! BernoulliExpNegSampleUnitAux has a transition phase
 -- This min is suspicious: (min (fuel + 2) (fuel + k + 1) - 2)
-@[simp]
 theorem BernoulliExpNegSampleUnitAux_progress (num : ℕ) (den : ℕ+) (fuel k : ℕ) (wf : num ≤ den) :
   probWhileCut (fun state => state.1) (BernoulliExpNegSampleUnitLoop num den wf) (fuel + 2) (true, plus_one k ) (false, plus_two k fuel ) = (∏ i ∈ range fuel, (num : ENNReal) / ((k + 1 + i) * den)) * (1 - ((num : ENNReal) / ((fuel + k + 1) * den))) := by
   revert k
@@ -168,17 +144,10 @@ theorem BernoulliExpNegSampleUnitAux_progress (num : ℕ) (den : ℕ+) (fuel k :
       rw [plus_one_prop]
       simp
     · rename_i h
-      have A : ¬ k + 2 = k + 2 := by
-        conv =>
-          right
-          congr
-          · rw [← plus_two_zero_prop]
-          · change k + (1 + 1)
-            rw [← add_assoc]
-            rw [← plus_one_prop]
-        refine (Function.Injective.ne_iff ?hf).mpr h
-        exact PNat.coe_injective
-      contradiction
+      exfalso
+      apply h
+      apply PNat.coe_injective
+      simp [plus_one, plus_two]
   · rename_i fuel IH
     intro k
     rw [BernoulliExpNegSampleUnitAux_succ_true]
@@ -187,18 +156,8 @@ theorem BernoulliExpNegSampleUnitAux_progress (num : ℕ) (den : ℕ+) (fuel k :
     clear IH
     have A : plus_one (k + 1) = plus_one k + 1 := rfl
     have B : plus_two (k + 1) fuel = plus_two k (succ fuel) := by
-      simp [plus_two]
-      have X : fuel + (k + 1) + 2 = succ fuel + k + 2 := by
-        conv =>
-          left
-          left
-          right
-          rw [add_comm]
-        rw [← add_assoc]
-      conv =>
-        left
-        left
-        rw [X]
+      apply PNat.coe_injective
+      simp [plus_two]; omega
     rw [← A]
     rw [← B]
     rw [IH']
@@ -208,60 +167,34 @@ theorem BernoulliExpNegSampleUnitAux_progress (num : ℕ) (den : ℕ+) (fuel k :
       simp [plus_one, plus_two] at this
       omega
     simp [C]
-    have E : fuel + (k + (1 : ENNReal)) + (1 : ENNReal) = ↑fuel + 1 + ↑k + 1 := by -- duplicate later on
-      conv =>
-        left
-        left
-        right
-        rw [add_comm]
-      rw [← add_assoc]
+    have E : (fuel : ENNReal) + (k + (1 : ENNReal)) + 1 = (fuel : ENNReal) + 1 + k + 1 := by
+      ring
     rw [E]
-    clear IH' A B C E
     simp [prod_range_succ']
     rw [plus_one_prop]
-    conv =>
-      right
-      left
-      rw [mul_comm]
-    conv =>
-      right
-      left
-      right
-      right
-      intro x
-      right
-      left
-      right
-      rw [add_comm]
-    conv =>
-      right
-      left
-      right
-      right
-      intro x
-      right
-      left
-      rw [← add_assoc]
-    simp
-    rw [mul_assoc]
+    have F : (∀ x ∈ range fuel,
+        ((num : ENNReal) / ((k + 1 + (x + 1)) * (den : ENNReal)))
+          = (num : ENNReal) / (((k + 1) + 1 + x) * (den : ENNReal))) := by
+      intro x _
+      congr 2; ring
+    rw [Finset.prod_congr rfl F]
+    push_cast
+    rw [mul_comm, mul_right_comm]
 
-theorem adhoc (n : ℕ) (h : n > 1) :
+theorem nat_sub_two_add_one (n : ℕ) (h : n > 1) :
   n - 2 + 1 = n - 1 := by
-  rw [← tsub_tsub_assoc]
-  · exact h
-  · exact le.step le.refl
+  omega
 
-theorem adhoc' (n : ℕ) (h : n > 1) :
+theorem ennreal_sub_two_add_one (n : ℕ) (h : n > 1) :
   (n : ENNReal) - 2 + 1 = (n : ENNReal) - 1 := by
-  have C := @congrArg ℕ ENNReal (n - 2 + 1) (n - 1) Nat.cast  (adhoc n h)
-  simp at C
-  trivial
+  have step : ((n - 2 + 1 : ℕ) : ENNReal) = ((n - 1 : ℕ) : ENNReal) :=
+    congrArg Nat.cast (nat_sub_two_add_one n h)
+  simpa [Nat.cast_sub h.le, Nat.cast_sub (Nat.one_le_iff_ne_zero.mpr (by omega : n ≠ 0))] using step
 
-@[simp]
 theorem BernoulliExpNegSampleUnitAux_progress' (num : ℕ) (den : ℕ+) (n : ℕ) (wf : num ≤ den) (h : n > 1) :
   probWhileCut (fun state => state.1) (BernoulliExpNegSampleUnitLoop num den wf) n (true, 1 ) (false, ⟨ n , lt_of_succ_lt h ⟩ ) = (∏ i ∈ range (n - 2), (num : ENNReal) / ((1 + i) * den)) * (1 - ((num : ENNReal) / ((n - 1) * den))) := by
   have prog := BernoulliExpNegSampleUnitAux_progress num den (n - 2) 0 wf
-  have A := nm2p2 n h
+  have A : n - 2 + 2 = n := Nat.sub_add_cancel h
   rw [A] at prog
   have B : plus_two 0 (n - 2) = ⟨ n , lt_of_succ_lt h ⟩ := by
     simp [plus_two]
@@ -271,11 +204,10 @@ theorem BernoulliExpNegSampleUnitAux_progress' (num : ℕ) (den : ℕ+) (n : ℕ
       rw [A]
   rw [B] at prog
   simp [plus_one] at prog
-  have C := adhoc' n h
+  have C := ennreal_sub_two_add_one n h
   rw [C] at prog
   trivial
 
-@[simp]
 theorem BernoulliExpNegSampleUnitAux_preservation (num : ℕ) (den : ℕ+) (fuel fuel' k : ℕ) (wf : num ≤ den) (h1 : fuel ≥ fuel') :
   probWhileCut (fun state => state.1) (BernoulliExpNegSampleUnitLoop num den wf) (1 + fuel + 2) (true, plus_one k ) (false, plus_two k fuel')
     = probWhileCut (fun state => state.1) (BernoulliExpNegSampleUnitLoop num den wf) (fuel + 2) (true, plus_one k ) (false, plus_two k fuel') := by
@@ -313,30 +245,17 @@ theorem BernoulliExpNegSampleUnitAux_preservation (num : ℕ) (den : ℕ+) (fuel
       rw [C]
       simp
     · rename_i fuel'
-      have C : succ fuel' - 1 = fuel' := by exact rfl
+      have C : succ fuel' - 1 = fuel' := rfl
       rw [C] at IH'
-      have D : plus_two (k + 1) fuel' = plus_two k (succ fuel') := by -- Important example for cleanup
-        simp [plus_two]
-        have X : fuel' + (k + 1) + 2 = succ fuel' + k + 2 := by
-          conv =>
-            left
-            left
-            right
-            rw [add_comm]
-          rw [← add_assoc]
-        conv =>
-          left
-          left
-          rw [X]
+      have D : plus_two (k + 1) fuel' = plus_two k (succ fuel') := by
+        apply PNat.coe_injective
+        simp [plus_two]; omega
       rw [D] at IH'
-      have E : plus_one (k + 1) = plus_one k + 1 := by  -- Useful for cleanup
-        simp [plus_one]
-        rfl
+      have E : plus_one (k + 1) = plus_one k + 1 := rfl
       rw [E] at IH'
       rw [IH']
-      exact rfl
+      rfl
 
-@[simp]
 theorem BernoulliExpNegSampleUnitAux_preservation' (num : ℕ) (den : ℕ+) (n m : ℕ) (wf : num ≤ den) (h1 : m > 1) (h2 : n ≥ m) :
   probWhileCut (fun state => state.1) (BernoulliExpNegSampleUnitLoop num den wf) (n + 1) (true, 1) (false, ⟨ m, zero_lt_of_lt h1 ⟩ )
     = probWhileCut (fun state => state.1) (BernoulliExpNegSampleUnitLoop num den wf) n (true, 1) (false, ⟨ m, zero_lt_of_lt h1 ⟩) := by
@@ -346,8 +265,8 @@ theorem BernoulliExpNegSampleUnitAux_preservation' (num : ℕ) (den : ℕ+) (n m
     rw [add_assoc]
     rw [add_comm]
     rw [_root_.add_left_inj]
-    rw [nm2p2 n (Nat.lt_of_lt_of_le h1 h2)]
-  have B := nm2p2 n (Nat.lt_of_lt_of_le h1 h2)
+    rw [Nat.sub_add_cancel (Nat.lt_of_lt_of_le h1 h2)]
+  have B : n - 2 + 2 = n := Nat.sub_add_cancel (Nat.lt_of_lt_of_le h1 h2)
   have C : plus_one 0 = 1 := by
     simp [plus_one]
   have D : plus_two 0 (m - 2) = ⟨ m, zero_lt_of_lt h1 ⟩ := by
@@ -355,11 +274,10 @@ theorem BernoulliExpNegSampleUnitAux_preservation' (num : ℕ) (den : ℕ+) (n m
     conv =>
       left
       left
-      rw [nm2p2 m h1]
+      rw [Nat.sub_add_cancel h1]
   rw [A, B, C, D] at prog
   trivial
 
-@[simp]
 theorem BernoulliExpNegSampleUnitAux_characterization (num : ℕ) (den : ℕ+) (n extra : ℕ) (wf : num ≤ den) (h : n > 1) :
   probWhileCut (fun state => state.1) (BernoulliExpNegSampleUnitLoop num den wf) (extra + n) (true, 1) (false, ⟨ n, by exact zero_lt_of_lt h ⟩)
     =  (∏ i ∈ range (n - 2), (num : ENNReal) / ((1 + i) * den)) * (1 - ((num : ENNReal) / ((n - 1) * den))) := by
@@ -373,15 +291,7 @@ theorem BernoulliExpNegSampleUnitAux_characterization (num : ℕ) (den : ℕ+) (
     have IH' := IH n h
     clear IH
     rw [← BernoulliExpNegSampleUnitAux_preservation'] at IH'
-    · have B : extra + n + 1 = succ extra + n := by
-        clear IH'
-        clear IH'
-        conv =>
-          left
-          rw [add_comm]
-          rw [← add_assoc]
-        rw [add_left_inj]
-        exact one_add extra
+    · have B : extra + n + 1 = succ extra + n := by omega
       rw [← B]
       trivial
     · trivial
@@ -408,8 +318,7 @@ theorem BernoulliExpNegSampleUnitAux_sup (num : ℕ) (den : ℕ+) (n : ℕ+) (wf
         subst h'
         contradiction
       have FOO (n_1 : ℕ) := @BernoulliExpNegSampleUnitAux_characterization num den n n_1 wf h'
-      have BAR : n = (@Subtype.mk.{1} Nat (fun (n : Nat) => @LT.lt.{0} Nat instLTNat (@OfNat.ofNat.{0} Nat 0 (instOfNatNat 0)) n)
-          (PNat.val n) (@Nat.zero_lt_of_lt (@OfNat.ofNat.{0} Nat 1 (instOfNatNat 1)) (PNat.val n) h')) := rfl
+      have BAR : n = (⟨(n : ℕ), Nat.zero_lt_of_lt h'⟩ : ℕ+) := rfl
       conv =>
         congr
         intro n_1
@@ -443,15 +352,9 @@ theorem if_simpl' (num : ℕ) (den : ℕ+) (x n : ℕ+) :
   (if n = x then
     (if x = 1 then 0
     else ((∏ i ∈ range (↑x - 2), ↑num / (((1 : ENNReal) + ↑i) * ↑↑den)) * (1 - ↑num / ((↑↑x - 1) * ↑↑den)))) else 0) = 0 := by
-  split
-  · simp
-  · split
-    · split
-      · simp
-      · rename_i h1 h2 h3
-        subst h2
-        contradiction
-    · simp
+  by_cases hxn : x = n
+  · simp [hxn]
+  · rw [if_neg hxn, if_neg (fun h => hxn h.symm)]
 
 theorem BernoulliExpNegSampleUnitAux_apply (num : ℕ) (den : ℕ+) (n : ℕ+) (wf : num ≤ den) :
   (BernoulliExpNegSampleUnitAux num den wf) n =
@@ -463,12 +366,7 @@ theorem BernoulliExpNegSampleUnitAux_apply (num : ℕ) (den : ℕ+) (n : ℕ+) (
   simp [BernoulliExpNegSampleUnitAux_sup]
   rw [ENNReal.tsum_eq_add_tsum_ite n]
   simp
-  conv =>
-    left
-    right
-    arg 1
-    intro x
-    rw [if_simpl']
+  rw [tsum_congr (fun x => if_simpl' num den x n)]
   simp
 
 @[simp]
@@ -478,24 +376,15 @@ theorem BernoulliExpNegSampleUnitAux_at_one (num : ℕ) (den : ℕ+) (wf : num �
   rw [BernoulliExpNegSampleUnitAux_apply]
   simp
 
-theorem gamma_extract' (num : Nat) (den : PNat) (x : ENNReal) (h1 : x ≠ 0) (h2 : x ≠ ⊤) :
+theorem gamma_extract' (num : Nat) (den : PNat) (x : ENNReal) (h1 : x ≠ 0) (_h2 : x ≠ ⊤) :
   ((num : ENNReal) / (x * den)) = ((num : ENNReal) / (den : ENNReal)) * x⁻¹ := by
-  simp [division_def]
-  rw [mul_assoc]
-  congr
-  rw [mul_comm]
-  refine (ENNReal.eq_inv_of_mul_eq_one_left ?_).symm
-  rw [← mul_assoc]
-  conv =>
-    left
-    left
-    rw [mul_comm]
-    rw [← mul_assoc]
-  simp [ENNReal.mul_inv_cancel]
-  rw [mul_comm]
-  simp [ENNReal.mul_inv_cancel, h1, h2]
+  have hd0 : (den : ENNReal) ≠ 0 := NeZero.natCast_ne (↑den) ENNReal
+  have hxd : (x * (den : ENNReal))⁻¹ = x⁻¹ * ((den : ENNReal))⁻¹ :=
+    ENNReal.mul_inv (Or.inl h1) (Or.inr hd0)
+  rw [div_eq_mul_inv, hxd, div_eq_mul_inv]
+  ring
 
-theorem gamma_extract (num : Nat) (den : PNat) (n : ℕ) (h : n > 1) :
+theorem gamma_extract (num : Nat) (den : PNat) (n : ℕ) (_h : n > 1) :
   (∏ i ∈ range (n - 2), (num : ENNReal) / ((1 + i) * den)) =
   (((num : ENNReal) / (den : ENNReal))^(n - 2) * ((factorial (n - 2)) : ENNReal)⁻¹) := by
   have X : ∀ i : ℕ, (1 : ENNReal) + i ≠ 0 := by
@@ -504,45 +393,16 @@ theorem gamma_extract (num : Nat) (den : PNat) (n : ℕ) (h : n > 1) :
   have Y : ∀ i : ℕ, (1 : ENNReal) + i ≠ ⊤ := by
     intro i
     simp
-  conv =>
-    left
-    right
-    intro i
-    rw [gamma_extract' _ _ _ (X i) (Y i)]
+  rw [Finset.prod_congr rfl (fun i _ => gamma_extract' _ _ _ (X i) (Y i))]
   rw [prod_mul_distrib]
   rw [← pow_eq_prod_const]
   congr
-  rw [← prod_range_add_one_eq_factorial]
-  rw [cast_prod]
-  conv =>
-    right
-    right
-    right
-    intro i
-    rw [cast_add]
-    rw [add_comm]
-    simp
-  clear X Y
-  cases n
-  · contradiction
-  · rename_i n
-    cases n
-    · contradiction
-    · rename_i n
-      clear h
-      induction n
-      · simp
-      · rename_i n IH
-        have A : succ (succ (succ n)) - 2 = succ n := rfl
-        rw [A]
-        rw [prod_range_succ]
-        rw [prod_range_succ]
-        have B : succ (succ n) - 2 = n := rfl
-        rw [B] at IH
-        rw [IH]
-        rw [ENNReal.mul_inv]
-        · simp
-        · simp
+  rw [← prod_range_add_one_eq_factorial, Nat.cast_prod]
+  rw [ENNReal.prod_inv_distrib (fun _ _ _ _ _ => Or.inl (by push_cast; positivity))]
+  apply Finset.prod_congr rfl
+  intro i _
+  push_cast
+  rw [add_comm]
 
 noncomputable def mass (n : ℕ) (γ : ENNReal) := (γ^(n - 2) * (((n - 2)!) : ENNReal)⁻¹) * (1 - (γ * ((n : ENNReal) - 1)⁻¹))
 
@@ -613,9 +473,7 @@ theorem mass'_series_exp (γ : ENNReal) (h : γ ≠ ⊤) :
       rw [ENNReal.toReal_inv]
       simp
       rw [← division_def]
-    conv =>
-      left
-      change ((λ x : ℝ => ∑' (a : ℕ), x ^ a / ↑a !) (ENNReal.toReal γ))
+    show (fun x : ℝ => ∑' a : ℕ, x ^ a / a.factorial) γ.toReal = _
     rw [← @NormedSpace.exp_eq_tsum_div ℝ]
     rw [← Real.exp_eq_exp_ℝ]
   · intro a
@@ -631,26 +489,21 @@ theorem mass'_series_converges (γ : ENNReal) (h : γ ≠ ⊤) :
   rw [← A] at B
   simp at B
 
+theorem ite_zero_inst_propDecidable {α : Type*} {p : α → α → Prop} [∀ x y, Decidable (p x y)]
+    (a : α) (f : α → ENNReal) (n : α) :
+    (if p n a then (0 : ENNReal) else f n)
+      = @ite ENNReal (p n a) (Classical.propDecidable (p n a)) 0 (f n) := by
+  by_cases hn : p n a <;> simp [hn]
+
 theorem mass'_series_converges' (γ : ENNReal) (h : γ ≠ ⊤) :
   (∑' (i : ℕ), mass' (i + 1) γ) ≠ ⊤ := by
   have A := mass'_series_converges γ h
   rw [ENNReal.tsum_eq_add_tsum_ite 0] at A
   have B := tsum_shift'_1 (λ x => mass' x γ)
-  have C : ∀ n, @ite ENNReal (n = 0) (instDecidableEqNat n 0) 0 (mass' n γ) = @ite ENNReal (n = 0) (Classical.propDecidable (n = 0)) 0 (mass' n γ) := by
-    intro n
-    split
-    · simp
-    · simp
-  revert B
-  conv =>
-    left
-    left
-    arg 1
-    intro n
-    rw [C n]
-  intro B
+  conv at B =>
+    left; arg 1; ext n
+    rw [ite_zero_inst_propDecidable 0 (fun n => mass' n γ) n]
   rw [B] at A
-  clear C B
   by_contra h
   rw [h] at A
   simp at A
@@ -658,47 +511,14 @@ theorem mass'_series_converges' (γ : ENNReal) (h : γ ≠ ⊤) :
 theorem mass'_series_converges'_even (γ : ENNReal) (h : γ ≠ ⊤) :
   (∑' (i : ℕ), mass' (2 * i) γ) ≠ ⊤ := by
   have A := mass'_series_converges γ h
-  rw [← tsum_even_add_odd] at A
-  · by_contra h'
-    rw [h'] at A
-    simp at A
-  · exact ENNReal.summable
-  · exact ENNReal.summable
+  rw [← tsum_even_add_odd ENNReal.summable ENNReal.summable] at A
+  exact fun h' => by rw [h'] at A; simp at A
 
 theorem mass'_series_converges'_odd (γ : ENNReal) (h : γ ≠ ⊤) :
   (∑' (i : ℕ), mass' (2 * i + 1) γ) ≠ ⊤ := by
   have A := mass'_series_converges γ h
-  rw [← tsum_even_add_odd] at A
-  · by_contra h'
-    rw [h'] at A
-    simp at A
-  · exact ENNReal.summable
-  · exact ENNReal.summable
-
-theorem mass'_series_exp' (γ : ENNReal) (h : γ ≠ ⊤) :
-  (∑' (i : ℕ), mass' i γ) = ENNReal.ofReal (Real.exp (γ.toReal)) := by
-  rw [← @ENNReal.ofReal_toReal (∑' (i : ℕ), mass' i γ)]
-  · unfold mass'
-    rw [ENNReal.tsum_toReal_eq]
-    · conv =>
-        left
-        right
-        arg 1
-        intro a
-        rw [ENNReal.toReal_mul]
-        rw [ENNReal.toReal_pow]
-        rw [ENNReal.toReal_inv]
-        simp
-        rw [← division_def]
-      conv =>
-        left
-        right
-        change ((λ x : ℝ => ∑' (a : ℕ), x ^ a / ↑a !) (ENNReal.toReal γ))
-      rw [← @NormedSpace.exp_eq_tsum_div ℝ]
-      rw [← Real.exp_eq_exp_ℝ]
-    · intro a
-      apply mass'_neq_top _ _ h
-  · apply mass'_series_converges _ h
+  rw [← tsum_even_add_odd ENNReal.summable ENNReal.summable] at A
+  exact fun h' => by rw [h'] at A; simp at A
 
 theorem mass_simpl (n : ℕ) (γ : ENNReal) (h : n ≥ 2) :
   mass n γ = mass' (n - 2) γ - mass' (n - 1) γ := by
@@ -713,7 +533,7 @@ theorem mass_simpl (n : ℕ) (γ : ENNReal) (h : n ≥ 2) :
       left
       rw [mul_comm]
       rw [← _root_.pow_succ']
-    rw [adhoc n h]
+    rw [nat_sub_two_add_one n h]
     congr
     rw [← ENNReal.mul_inv]
     · rw [inv_eq_iff_eq_inv]
@@ -728,82 +548,30 @@ theorem mass_simpl (n : ℕ) (γ : ENNReal) (h : n ≥ 2) :
     · simp only [ne_eq, cast_eq_zero, ENNReal.sub_eq_top_iff, ENNReal.natCast_ne_top,
       ENNReal.one_ne_top, not_false_eq_true, and_true, or_true]
     · simp only [ne_eq, ENNReal.natCast_ne_top, not_false_eq_true, true_or]
-  · intro h1 h2
-    rw [ne_iff_lt_or_gt] -- Proof to simplify with mass'_neq_top
+  · intro _ h2
+    have hγ : γ ≠ ⊤ := by
+      intro hγ
+      subst hγ
+      have hinv : ((n : ENNReal) - 1)⁻¹ ≠ 0 := by
+        apply ENNReal.inv_ne_zero.mpr
+        exact ENNReal.sub_ne_top (ENNReal.natCast_ne_top n)
+      rw [ENNReal.top_mul hinv] at h2
+      exact absurd h2 (by simp)
+    rw [ne_iff_lt_or_gt]
     left
-    rw [ENNReal.mul_lt_top_iff]
-    left
-    constructor
-    · have X : γ ≠ ⊤ := by
-        by_contra h
-        subst h
-        simp only [ge_iff_le, ne_eq, ENNReal.inv_eq_zero, ENNReal.sub_eq_top_iff,
-          ENNReal.natCast_ne_top, ENNReal.one_ne_top, not_false_eq_true, and_true, ENNReal.top_mul,
-          ENNReal.zero_lt_top, not_top_lt] at *
-      clear h1 h2
-      induction n
-      · simp only [_root_.zero_le, tsub_eq_zero_of_le, _root_.pow_zero,
-        ENNReal.one_lt_top]
-      · rename_i n IH
-        have OR : n = 1 ∨ n ≥ 2 := by
-          clear IH γ X
-          cases n
-          · simp at h
-          · rename_i n
-            cases n
-            · simp
-            · rename_i n
-              right
-              exact AtLeastTwo.prop
-        cases OR
-        · rename_i h'
-          subst h'
-          simp only [le_refl, tsub_eq_zero_of_le, _root_.pow_zero,
-            ENNReal.one_lt_top]
-        · rename_i h'
-          have IH' := IH h'
-          clear IH
-          have A : succ n - 2 = succ (n - 2) := by
-            cases n
-            · contradiction
-            · rename_i n
-              cases n
-              · contradiction
-              · rename_i n
-                rfl
-          rw [A]
-          rw [_root_.pow_succ]
-          rw [ENNReal.mul_lt_top_iff]
-          left
-          constructor
-          · exact IH'
-          · exact Ne.lt_top X
-    · have A : (n - 2)! > 0 := by exact factorial_pos (n - 2)
-      rw [@ENNReal.inv_lt_iff_inv_lt]
-      simp only [ENNReal.inv_top, cast_pos]
-      exact A
+    have neq := mass'_neq_top (n - 2) γ hγ
+    unfold mass' at neq
+    exact lt_of_le_of_ne le_top neq
 
 theorem if_ge_2 (x : ℕ) (num : ℕ) (den : ℕ+) (wf : num ≤ den) (gam : γ = (num : ENNReal) / (den : ENNReal)) :
   (@ite ENNReal (x = 0) (Classical.propDecidable (x = 0)) 0
   (@ite ENNReal (x = 1) (Classical.propDecidable (x = 1)) 0 (BernoulliExpNegSampleUnitAux num den wf x)))
     = if x = 0 then 0 else if x = 1 then 0 else mass x γ := by
-  split
-  · simp
-  · split
-    · simp
-    · rename_i h1 h2
-      rw [BernoulliExpNegSampleUnitAux_apply']
-      · exact one_lt_iff_ne_zero_and_ne_one.mpr { left := h1, right := h2 }
-      · exact gam
-
-theorem if_split_minus (x : ℕ) (γ : ENNReal) :
-  (@ite ENNReal (x = 0) (instDecidableEqNat x 0) 0 (@ite ENNReal (x = 1) (instDecidableEqNat x 1) 0 (mass' (x - 2) γ - mass' (x - 1) γ)))
-    = (@ite ENNReal (x = 0) (instDecidableEqNat x 0) 0 (@ite ENNReal (x = 1) (instDecidableEqNat x 1) 0 (mass' (x - 2) γ))) - (@ite ENNReal (x = 0) (instDecidableEqNat x 0) 0 (@ite ENNReal (x = 1) (instDecidableEqNat x 1) 0 (mass' (x - 1) γ))) := by
-  split
-  · simp
-  · split
-    · simp
-    · simp
+  split_ifs with h₀ h₁
+  · rfl
+  · rfl
+  · exact BernoulliExpNegSampleUnitAux_apply' _ _ _ wf
+      (one_lt_iff_ne_zero_and_ne_one.mpr ⟨h₀, h₁⟩) γ gam
 
 theorem mass'_antitone (n : ℕ) (γ : ENNReal) (h : γ ≤ 1) :
   mass' n γ ≥ mass' (n + 1) γ  := by
@@ -811,16 +579,9 @@ theorem mass'_antitone (n : ℕ) (γ : ENNReal) (h : γ ≤ 1) :
   rw [pow_add]
   simp [factorial]
   rw [ENNReal.mul_inv]
-  · have A : γ ^ n * γ * (((n : ENNReal) + 1)⁻¹ * (↑n !)⁻¹) = (γ ^ n * (↑n !)⁻¹) * (γ * ((n : ENNReal) + 1)⁻¹) := by
-      rw [mul_assoc]
-      rw [mul_assoc]
-      congr 1
-      conv =>
-        right
-        rw [mul_comm]
-      rw [mul_assoc]
+  · have A : γ ^ n * γ * (((n : ENNReal) + 1)⁻¹ * (↑n !)⁻¹)
+        = (γ ^ n * (↑n !)⁻¹) * (γ * ((n : ENNReal) + 1)⁻¹) := by ring
     rw [A]
-    clear A
     have C : ((n: ENNReal) + 1)⁻¹ ≤ 1 := by
       simp only [ENNReal.inv_le_one, self_le_add_left]
     calc γ ^ n * (↑n !)⁻¹ * (γ * ((n : ENNReal) + 1)⁻¹)
@@ -859,57 +620,25 @@ theorem γ_ne_top (num : ℕ) (den : ℕ+) (gam : γ = (num : ENNReal) / (den : 
 theorem γ_le_1 (num : ℕ) (den : ℕ+) (wf : num ≤ den) (gam : γ = (num : ENNReal) / (den : ENNReal)) :
   γ ≤ 1 := by
   subst gam
-  have A : (num : ENNReal) ≠ ⊤ := ENNReal.natCast_ne_top num
-  have B : (den : ENNReal) ≠ 0 := NeZero.natCast_ne (↑den) ENNReal
-  have C : ((den : ENNReal)⁻¹ ) ≠ ⊤ := ENNReal.inv_ne_top.mpr B
-  have D : 0 ≤ ENNReal.toReal (den : ENNReal)⁻¹ := ENNReal.toReal_nonneg
-  rw [ENNReal.div_eq_inv_mul]
-  rw [← @ENNReal.ofReal_toReal (num : ENNReal) A]
-  rw [← @ENNReal.ofReal_toReal ((den : ENNReal)⁻¹) C]
-  rw [← ENNReal.ofReal_mul D]
-  rw [ENNReal.toReal_natCast]
-  rw [ENNReal.ofReal_le_one]
-  rw [ENNReal.toReal_inv]
-  rw [ENNReal.toReal_natCast]
-  rw [inv_mul_eq_div]
-  rw [div_le_one]
-  · rw [cast_le]
-    exact wf
-  · simp only [cast_pos, PNat.pos]
+  rw [ENNReal.div_le_iff_le_mul (Or.inl (NeZero.natCast_ne (↑den) ENNReal))
+    (Or.inl (ENNReal.natCast_ne_top _)), one_mul, Nat.cast_le]
+  exact wf
 
 theorem BernoulliExpNegSampleUnitAux_normalizes (num : ℕ) (den : ℕ+) (wf : num ≤ den) (gam : γ = (num : ENNReal) / (den : ENNReal)) :
   ∑' n : ℕ, (BernoulliExpNegSampleUnitAux num den wf) n = 1 := by
   rw [ENNReal.tsum_eq_add_tsum_ite 1]
   rw [ENNReal.tsum_eq_add_tsum_ite 0]
   simp
-  conv =>
-    left
-    arg 1
-    intro x
-    rw [if_ge_2 x]
-  rw [← gam]
+  rw [tsum_congr (fun x => if_ge_2 x num den wf gam)]
   rw [tsum_shift'_2]
-  conv =>
-    left
-    arg 1
-    intro n
-    rw [mass_simpl _ _ (by simp)]
+  rw [tsum_congr (fun n => mass_simpl _ _ (by simp))]
   simp
   rw [ENNReal.tsum_sub]
   · rw [ENNReal.tsum_eq_add_tsum_ite 0]
     have X := tsum_shift'_1 (fun n => mass' n γ)
-    have A : ∀ n : ℕ, @ite ENNReal (n = 0) (instDecidableEqNat n 0) 0 (mass' n γ) = @ite ENNReal (n = 0) (Classical.propDecidable (n = 0)) 0 (mass' n γ) := by
-      intro n
-      split
-      · simp
-      · simp
     conv =>
-      left
-      left
-      right
-      arg 1
-      intro n
-      rw [← A]
+      left; left; right; arg 1; intro n
+      rw [← ite_zero_inst_propDecidable 0 (fun n => mass' n γ) n]
     rw [X]
     rw [ENNReal.add_sub_cancel_right]
     · simp [mass']
@@ -927,125 +656,51 @@ theorem series_step_1 (num : Nat) (den : PNat)  (wf : num ≤ den) (γ : ENNReal
   (∑' (a : ℕ), if a % 2 = 0 then BernoulliExpNegSampleUnitAux num den wf a else 0)
     = (∑' (n : ℕ), mass (2 * (n + 1)) γ) := by
   rw [← tsum_even_add_odd]
-  · conv =>
-      left
-      left
-      arg 1
-      intro k
-      simp
-    have A : forall k, (((2 * k + 1) % 2 = 0) ↔ False) := by
-      intro k
-      simp
-    conv =>
-      left
-      right
-      arg 1
-      intro k
-      simp [A k]
-    clear A
+  · rw [tsum_congr (fun k => show (if (2 * k) % 2 = 0 then BernoulliExpNegSampleUnitAux num den wf (2 * k) else 0)
+        = BernoulliExpNegSampleUnitAux num den wf (2 * k) from by simp)]
+    rw [tsum_congr (fun k => show (if (2 * k + 1) % 2 = 0 then BernoulliExpNegSampleUnitAux num den wf (2 * k + 1) else 0)
+        = 0 from by simp)]
     simp
     rw [ENNReal.tsum_eq_add_tsum_ite 0]
     simp only [mul_zero, BernoulliExpNegSampleUnitAux_at_zero, zero_add]
     have X := tsum_shift'_1 (fun n => BernoulliExpNegSampleUnitAux num den wf (2 * n))
-    have B : ∀ n, @ite ENNReal (n = 0) (instDecidableEqNat n 0) 0 (BernoulliExpNegSampleUnitAux num den wf (2 * n)) = @ite ENNReal (n = 0) (Classical.propDecidable (n = 0)) 0 (BernoulliExpNegSampleUnitAux num den wf (2 * n)) := by
-      intro n
-      split
-      · simp
-      · simp
-    conv =>
-      left
-      arg 1
-      intro x
-      rw [← B]
-    clear B
+    rw [tsum_congr (fun n => (ite_zero_inst_propDecidable 0
+      (fun k => BernoulliExpNegSampleUnitAux num den wf (2 * k)) n).symm)]
     rw [X]
-    clear X
-    have C : ∀ n, 2 * (n + 1) > 1 := by exact fun n => one_lt_succ_succ (Nat.mul 2 (Nat.add n 0))
-    conv =>
-      left
-      arg 1
-      intro k
-      rw [BernoulliExpNegSampleUnitAux_apply' _ _ _ wf (C k) γ gam]
+    have C : ∀ n, 2 * (n + 1) > 1 := fun n => one_lt_succ_succ (Nat.mul 2 (Nat.add n 0))
+    rw [tsum_congr (fun k => BernoulliExpNegSampleUnitAux_apply' _ _ _ wf (C k) γ gam)]
   · exact ENNReal.summable
   · exact ENNReal.summable
 
-theorem series_step_3 (γ : ENNReal) :
-  (∑' n : ℕ, mass (2 * (n + 1)) γ)
-    = ∑' n : ℕ, (mass' (2 * n) γ - mass' (2 * n + 1) γ) := by
-  have A : ∀ n : ℕ, 2 * (n + 1) ≥ 2 := by
-    intro n
-    simp
-  conv =>
-    left
-    arg 1
-    intro n
-    rw [mass_simpl (2 * (n + 1)) γ (A n)]
-  rfl
+noncomputable def mass_real (n : ℕ) (γ : ℝ) : ℝ := γ ^ n * ((n.factorial : ℝ))⁻¹
 
-noncomputable def mass'' (n : ℕ) (γ : ℝ) := (γ^n * (((n)!) : ℝ)⁻¹)
-
-theorem series_step_4_pre (γ : ENNReal) (h : γ ≠ ⊤) (h' : γ ≤ 1) :
+theorem series_step_4 (γ : ENNReal) (h : γ ≠ ⊤) (h' : γ ≤ 1) :
   (∑' n : ℕ, (mass' (2 * n) γ - mass' (2 * n + 1) γ))
-    = ENNReal.ofReal (∑' n : ℕ, mass'' n (- γ.toReal)) := by
+    = ENNReal.ofReal (∑' n : ℕ, mass_real n (- γ.toReal)) := by
   rw [← @ENNReal.ofReal_toReal (∑' (n : ℕ), (mass' (2 * n) γ - mass' (2 * n + 1) γ))]
   · rw [ENNReal.tsum_sub]
     · congr
       rw [ENNReal.toReal_sub_of_le]
       · rw [ENNReal.tsum_toReal_eq (fun a => mass'_neq_top _ _ h)]
         · rw [ENNReal.tsum_toReal_eq (fun a => mass'_neq_top _ _ h)]
-          · unfold mass'
-            conv =>
-              left
-              left
-              arg 1
-              intro a
-              rw [ENNReal.toReal_mul]
-              rw [ENNReal.toReal_pow]
-              rw [ENNReal.toReal_inv]
-            conv =>
-              left
-              right
-              arg 1
-              intro a
-              rw [ENNReal.toReal_mul]
-              rw [ENNReal.toReal_pow]
-              rw [ENNReal.toReal_inv]
+          · simp only [mass', ENNReal.toReal_mul, ENNReal.toReal_pow, ENNReal.toReal_inv]
             simp
-            have hinj2 : Function.Injective (fun n : ℕ => 2 * n) := fun a b h => by simpa using h
-            have hinj2' : Function.Injective (fun n : ℕ => 2 * n + 1) := fun a b h => by simpa using h
+            have hinj2 : Function.Injective (fun n : ℕ => 2 * n) := fun _ _ h => by simpa using h
+            have hinj2' : Function.Injective (fun n : ℕ => 2 * n + 1) := fun _ _ h => by simpa using h
             have X := NormedSpace.expSeries_div_summable (𝔸 := ℝ) (-ENNReal.toReal γ)
-            have A : Summable fun k => mass'' (2 * k) (-ENNReal.toReal γ) := by
-              refine (X.comp_injective hinj2).congr ?_
-              intro k
-              show (-ENNReal.toReal γ) ^ (2 * k) / ((2 * k)! : ℝ) =
-                (-ENNReal.toReal γ) ^ (2 * k) * ((2 * k)! : ℝ)⁻¹
-              rw [div_eq_mul_inv]
-            have B : Summable fun k => mass'' (2 * k + 1) (-ENNReal.toReal γ) := by
-              refine (X.comp_injective hinj2').congr ?_
-              intro k
-              show (-ENNReal.toReal γ) ^ (2 * k + 1) / ((2 * k + 1)! : ℝ) =
-                (-ENNReal.toReal γ) ^ (2 * k + 1) * ((2 * k + 1)! : ℝ)⁻¹
-              rw [div_eq_mul_inv]
-            have X := @tsum_even_add_odd ℝ _ _ _ _ (fun k => mass'' k (-ENNReal.toReal γ)) A B
-            conv =>
-              right
-              rw [← X]
+            have summ_mass_real : ∀ (g : ℕ → ℕ), Function.Injective g →
+                Summable fun k => mass_real (g k) (-ENNReal.toReal γ) := fun g hg => by
+              refine (X.comp_injective hg).congr ?_
+              intro k; simp [mass_real, div_eq_mul_inv]
+            have A := summ_mass_real _ hinj2
+            have B := summ_mass_real _ hinj2'
+            rw [← @tsum_even_add_odd ℝ _ _ _ _ (fun k => mass_real k (-ENNReal.toReal γ)) A B]
+            simp only [mass_real]
             simp
-            clear A B X
-            unfold mass''
-            simp
-            have A : ∀ k : ℕ, (-ENNReal.toReal γ) ^ (2 * k + 1) * (↑(2 * k + 1)!)⁻¹ = - ((ENNReal.toReal γ) ^ (2 * k + 1) * (↑(2 * k + 1)!)⁻¹) := by
-              intro k
-              rw [neg_mul_eq_neg_mul]
-              congr
-              rw [Odd.neg_pow (Exists.intro k rfl) (ENNReal.toReal γ)]
-            conv =>
-              right
-              right
-              arg 1
-              intro k
-              rw [A]
-            rw [tsum_neg]
+            have A : ∀ k : ℕ, (-ENNReal.toReal γ) ^ (2 * k + 1) * (↑(2 * k + 1)!)⁻¹
+                = - ((ENNReal.toReal γ) ^ (2 * k + 1) * (↑(2 * k + 1)!)⁻¹) := fun k => by
+              rw [neg_mul_eq_neg_mul, Odd.neg_pow (Exists.intro k rfl) (ENNReal.toReal γ)]
+            simp_rw [A, tsum_neg]
             rfl
       · apply ENNReal.tsum_le_tsum
         intro a
@@ -1062,45 +717,28 @@ theorem series_step_4_pre (γ : ENNReal) (h : γ ≠ ⊤) (h' : γ ≤ 1) :
   · apply mass'_series_converges'_sub _ h
     exact h'
 
-theorem series_step_4 (γ : ENNReal) (h : γ ≠ ⊤) (h' : γ ≤ 1) :
-  (∑' (n : ℕ), (mass' (2 * n) γ - mass' (2 * n + 1) γ))
-    = ENNReal.ofReal (Real.exp (- (γ.toReal))) := by
-  rw [series_step_4_pre _ h h']
-  congr
-  unfold mass''
-  rw [Real.exp_eq_exp_ℝ]
-  rw [NormedSpace.exp_eq_tsum_div]
-  simp
-  congr
-
 @[simp]
 theorem BernoulliExpNegSampleUnit_apply_true (num : Nat) (den : PNat)  (wf : num ≤ den) (γ : ENNReal) (gam : γ = (num : ENNReal) / (den : ENNReal)) :
   (BernoulliExpNegSampleUnit num den wf) true = ENNReal.ofReal (Real.exp (- (γ.toReal))) := by
+  have h := γ_ne_top num den gam
+  have h' := γ_le_1 num den wf gam
   simp [BernoulliExpNegSampleUnit, ite_apply]
   rw [series_step_1 num den wf γ gam]
-  rw [series_step_3 γ]
-  rw [series_step_4 γ]
-  · apply γ_ne_top num den gam
-  · apply γ_le_1 num den wf gam
-
-theorem BernoulliExpNegSampleAux_split (num : Nat) (den : PNat)  (wf : num ≤ den) :
-  (∑' (a : ℕ), BernoulliExpNegSampleUnitAux num den wf a)
-    = (BernoulliExpNegSampleUnit num den wf) false
-      +
-      (BernoulliExpNegSampleUnit num den wf) true := by
-  simp [BernoulliExpNegSampleUnit, ite_apply]
-  rw [← ENNReal.tsum_add]
-  apply tsum_congr
-  intro b
-  split
-  · simp
-  · simp
+  rw [show (∑' n : ℕ, mass (2 * (n + 1)) γ) = ∑' n : ℕ, (mass' (2 * n) γ - mass' (2 * n + 1) γ)
+        from tsum_congr (fun n => mass_simpl (2 * (n + 1)) γ (by simp))]
+  rw [series_step_4 γ h h']
+  congr
+  unfold mass_real
+  rw [Real.exp_eq_exp_ℝ, NormedSpace.exp_eq_tsum_div]
+  simp
+  congr
 
 theorem BernoulliExpNegSampleUnit_normalizes (num : Nat) (den : PNat)  (wf : num ≤ den) (γ : ENNReal) (gam : γ = (num : ENNReal) / (den : ENNReal)) :
   (∑' b : Bool, (BernoulliExpNegSampleUnit num den wf) b) = 1 := by
-  rw [tsum_bool]
-  rw [← BernoulliExpNegSampleAux_split num den wf]
-  rw [BernoulliExpNegSampleUnitAux_normalizes num den wf gam]
+  rw [tsum_bool, ← BernoulliExpNegSampleUnitAux_normalizes num den wf gam]
+  simp [BernoulliExpNegSampleUnit, ite_apply]
+  rw [← ENNReal.tsum_add]
+  exact tsum_congr (fun b => by split <;> simp)
 
 @[simp]
 theorem BernoulliExpNegSampleUnit_apply_false (num : Nat) (den : PNat)  (wf : num ≤ den) (γ : ENNReal) (gam : γ = (num : ENNReal) / (den : ENNReal)) :
@@ -1172,20 +810,6 @@ theorem BernoulliExpNegSample_normalizes (num : Nat) (den : PNat) :
     rw [add_comm]
     exact B
 
-theorem ENNReal_Real_mul_absorb (a : ENNReal) (b : ℝ) (h1 : b ≥ 0) :
-  ENNReal.toReal a * b = ENNReal.toReal (a * (ENNReal.ofReal b)) := by
-  simp
-  left
-  exact (ENNReal.toReal_ofReal h1).symm
-
-theorem Nat_eq_to_ENNReal_eq (a b : ℕ) (h : a = b) :
-  (a : ENNReal) = (b : ENNReal) := by
-  exact congrArg Nat.cast h
-
-theorem ENNReal_eq_to_Real_eq (a b : ENNReal) (h : a = b) :
-  a.toReal = b.toReal := by
-  exact congrArg ENNReal.toReal h
-
 /--
 Evaluation of Bernoulli negative exponential sampler at ``true``
 -/
@@ -1208,14 +832,10 @@ theorem BernoulliExpNegSample_apply_true (num : Nat) (den : PNat):
     congr 1
     have hden : (den : ℝ) ≠ 0 := NeZero.natCast_ne (↑den) ℝ
     field_simp
-    have := Nat.div_add_mod num (den : ℕ)
-    have hcast : ((num / (den : ℕ) : ℕ) : ℝ) * ((den : ℕ) : ℝ) + ((num % (den : ℕ) : ℕ) : ℝ)
+    have h1 : ((num / (den : ℕ) : ℕ) : ℝ) * ((den : ℕ) : ℝ) + ((num % (den : ℕ) : ℕ) : ℝ)
         = (num : ℝ) := by
-      have h1 := Nat.div_add_mod num (den : ℕ)
-      have : ((((den : ℕ) * (num / (den : ℕ)) + num % (den : ℕ) : ℕ) : ℝ)) = ((num : ℕ) : ℝ) := by
-        exact_mod_cast h1
-      push_cast at this
-      linarith
+      have := Nat.div_add_mod num (den : ℕ)
+      exact_mod_cast by linarith
     linarith
 
 /--
