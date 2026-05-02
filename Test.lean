@@ -346,7 +346,7 @@ def hardt_test : IO Unit := do
   let ε₂ : ℕ+ := 1
   let A₀ : Fin hardtBins → Float := floatInit nData hardtBins
 
-  IO.println s!"[mwem-hardt] replicating Hardt 2012 1D range query experiment"
+  IO.println s!"[mwem-hardt] smaller scale version of Hardt 2012 1D range query experiment"
   IO.println s!"  domain: {(hardtBins : ℕ)} bins"
   IO.println s!"  workload: {hardtNQ} 1D range queries"
   IO.println s!"  data: {hardtData.length} synthetic records"
