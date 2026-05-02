@@ -53,6 +53,16 @@ theorem mwem_DP (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) (�
         (fun im => IH (U.update A im.1 im.2)) ?_
     push_cast; ring
 
+theorem mwemSPMF_DP (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) (ε : NNReal)
+    (HN : laplace_pureDP_noise_priv ε₁ ε₂ ε) (T : ℕ) (A : State) :
+    PureDPSystem.prop (mwemSPMF U ε₁ ε₂ T A) (T * (ε + ε)) := by
+  have heq : (fun l => mwemSPMF U ε₁ ε₂ T A l) = (fun l => (mwem U ε₁ ε₂ T A l : SPMF _)) := by
+    funext l
+    apply Subtype.ext
+    exact mwemSLang_eq U ε₁ ε₂ T A l
+  rw [show mwemSPMF U ε₁ ε₂ T A = _ from heq]
+  exact mwem_DP U ε₁ ε₂ ε HN T A
+
 end SLang
 
 end

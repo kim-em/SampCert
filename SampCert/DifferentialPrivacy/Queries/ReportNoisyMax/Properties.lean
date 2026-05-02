@@ -259,6 +259,18 @@ theorem privReportNoisyMax_DP (n : ℕ) (s : Fin (n+1) → List T → ℤ) (Δ �
   rw [Finset.prod_congr rfl h_losers, mul_left_comm]
   exact _root_.mul_le_mul_right h_winner _
 
+theorem privReportNoisyMaxSPMF_DP (n : ℕ) (s : Fin (n+1) → List T → ℤ) (Δ ε₁ ε₂ : ℕ+)
+    (ε : NNReal) (HN : laplace_pureDP_noise_priv ε₁ ε₂ ε)
+    (Hsens : ∀ i, sensitivity (s i) Δ) :
+    PureDPSystem.prop (privReportNoisyMaxSPMF n s Δ ε₁ ε₂) ε := by
+  have heq : (fun l => privReportNoisyMaxSPMF n s Δ ε₁ ε₂ l) =
+             (fun l => (privReportNoisyMax n s Δ ε₁ ε₂ l : SPMF _)) := by
+    funext l
+    apply Subtype.ext
+    exact privReportNoisyMaxSLang_eq n s Δ ε₁ ε₂ l
+  rw [show privReportNoisyMaxSPMF n s Δ ε₁ ε₂ = _ from heq]
+  exact privReportNoisyMax_DP n s Δ ε₁ ε₂ ε HN Hsens
+
 end SLang
 
 end

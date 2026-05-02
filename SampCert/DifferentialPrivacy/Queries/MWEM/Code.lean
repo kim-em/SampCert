@@ -51,3 +51,52 @@ def mwem (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) :
 end SLang
 
 end
+
+namespace SLang
+
+variable {X : Type} {n : ℕ} {Δ : ℕ+} {State : Type} {init : State}
+
+def mwemRoundSLang (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) (A : State)
+    (l : List X) : SLang (Fin (n+1) × ℤ) := do
+  let i ← privReportNoisyMaxSLang n (U.scoreFn A) Δ ε₁ ε₂ l
+  let m ← DiscreteLaplaceGenSample (Δ * ε₂) ε₁ (U.queries i l)
+  return (i, m)
+
+def mwemSLang (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) :
+    ℕ → State → List X → SLang (List (Fin (n+1) × ℤ))
+  | 0, _, _ => probPure []
+  | T+1, A, l =>
+    probBind
+      (probBind (mwemRoundSLang U ε₁ ε₂ A l) (fun im =>
+        probBind (mwemSLang U ε₁ ε₂ T (U.update A im.1 im.2) l) (fun hist =>
+          probPure (im, hist))))
+      (fun p => probPure (p.1 :: p.2))
+
+theorem mwemRoundSLang_eq (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) (A : State)
+    (l : List X) :
+    mwemRoundSLang U ε₁ ε₂ A l = ((mwemRound U ε₁ ε₂ A l : SPMF _) : SLang _) := by
+  show probBind (privReportNoisyMaxSLang n (U.scoreFn A) Δ ε₁ ε₂ l) _ = _
+  rw [privReportNoisyMaxSLang_eq]
+  rfl
+
+theorem mwemSLang_eq (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) :
+    ∀ (T : ℕ) (A : State) (l : List X),
+      mwemSLang U ε₁ ε₂ T A l = ((mwem U ε₁ ε₂ T A l : SPMF _) : SLang _) := by
+  intro T
+  induction T with
+  | zero => intro A l; rfl
+  | succ T IH =>
+    intro A l
+    show probBind (probBind (mwemRoundSLang U ε₁ ε₂ A l) _) _ = _
+    rw [mwemRoundSLang_eq]
+    show probBind (probBind _
+      (fun im : Fin (n+1) × ℤ =>
+        probBind (mwemSLang U ε₁ ε₂ T (U.update A im.1 im.2) l) _)) _ = _
+    conv_lhs => enter [1, 2, im]; rw [IH]
+    rfl
+
+def mwemSPMF (U : SyntheticUpdater X n Δ State init) (ε₁ ε₂ : ℕ+) (T : ℕ) (A : State)
+    (l : List X) : SPMF (List (Fin (n+1) × ℤ)) :=
+  ⟨ mwemSLang U ε₁ ε₂ T A l, mwemSLang_eq U ε₁ ε₂ T A l ▸ (mwem U ε₁ ε₂ T A l).2 ⟩
+
+end SLang

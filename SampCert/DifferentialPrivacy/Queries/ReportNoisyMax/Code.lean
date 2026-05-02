@@ -66,3 +66,49 @@ def privReportNoisyMax (n : ℕ) (s : Fin (n+1) → List T → ℤ) (Δ ε₁ ε
 end SLang
 
 end
+
+namespace SLang
+
+def privNoisedFamilySLang {T : Type} (n : ℕ) (s : Fin (n+1) → List T → ℤ) (Δ ε₁ ε₂ : ℕ+)
+    (l : List T) : SLang (Fin (n+1) → ℤ) :=
+  match n with
+  | 0 => do
+    let z ← DiscreteLaplaceGenSample (2 * Δ * ε₂) ε₁ (s 0 l)
+    return (fun _ => z)
+  | Nat.succ n' => do
+    let rest ← privNoisedFamilySLang n' (fun i => s i.castSucc) Δ ε₁ ε₂ l
+    let last ← DiscreteLaplaceGenSample (2 * Δ * ε₂) ε₁ (s (Fin.last (n'+1)) l)
+    return (fun i => if h : i.val < n'+1 then rest ⟨i.val, h⟩ else last)
+
+def privReportNoisyMaxSLang {T : Type} (n : ℕ) (s : Fin (n+1) → List T → ℤ) (Δ ε₁ ε₂ : ℕ+)
+    (l : List T) : SLang (Fin (n+1)) := do
+  let noised ← privNoisedFamilySLang n s Δ ε₁ ε₂ l
+  return Fin.argmax n noised
+
+theorem privNoisedFamilySLang_eq {T : Type} (n : ℕ) (s : Fin (n+1) → List T → ℤ)
+    (Δ ε₁ ε₂ : ℕ+) (l : List T) :
+    privNoisedFamilySLang n s Δ ε₁ ε₂ l = ((privNoisedFamily n s Δ ε₁ ε₂ l : PMF _) : SLang _) := by
+  induction n with
+  | zero =>
+    show probBind (DiscreteLaplaceGenSample (2 * Δ * ε₂) ε₁ (s 0 l))
+           (fun z => probPure (fun _ => z)) = _
+    rfl
+  | succ n IH =>
+    show probBind (privNoisedFamilySLang n _ Δ ε₁ ε₂ l) _ = _
+    rw [IH]
+    rfl
+
+theorem privReportNoisyMaxSLang_eq {T : Type} (n : ℕ) (s : Fin (n+1) → List T → ℤ)
+    (Δ ε₁ ε₂ : ℕ+) (l : List T) :
+    privReportNoisyMaxSLang n s Δ ε₁ ε₂ l =
+      ((privReportNoisyMax n s Δ ε₁ ε₂ l : PMF _) : SLang _) := by
+  show probBind (privNoisedFamilySLang n s Δ ε₁ ε₂ l) _ = _
+  rw [privNoisedFamilySLang_eq]
+  rfl
+
+def privReportNoisyMaxSPMF {T : Type} (n : ℕ) (s : Fin (n+1) → List T → ℤ) (Δ ε₁ ε₂ : ℕ+)
+    (l : List T) : SPMF (Fin (n+1)) :=
+  ⟨ privReportNoisyMaxSLang n s Δ ε₁ ε₂ l,
+    privReportNoisyMaxSLang_eq n s Δ ε₁ ε₂ l ▸ (privReportNoisyMax n s Δ ε₁ ε₂ l).2 ⟩
+
+end SLang
