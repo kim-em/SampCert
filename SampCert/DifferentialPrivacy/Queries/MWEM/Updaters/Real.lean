@@ -9,13 +9,16 @@ import SampCert.DifferentialPrivacy.Queries.MWEM.Code
 /-!
 # Real-valued multiplicative-weights updater
 
-The textbook MWEM update from Hardt 2012, instantiated with
-`State = Fin numBins → NNReal` and `Real.exp` for the multiplicative factor.
+Hardt's MWEM (Hardt, Ligett, McSherry 2012, Algorithm 1) with the synthetic
+state in `Fin numBins → NNReal`. This is the textbook reference instantiation;
+not extractable to executable code (uses `Real.exp` and real arithmetic).
 
-The synthetic state is a non-negative real-valued histogram over `Fin numBins`.
-Records are bin indices directly (no separate binning function — the dataset is
-already histogrammed). Queries are integer-valued coefficient vectors
-`q : Fin (n+1) → Fin numBins → ℤ` with a uniform per-bin bound `Δ`.
+Following Figure 1 of the paper:
+
+* `A_0(x) = n / numBins` for all `x` (uniform with total mass `n`).
+* The update for round `i` is
+    `A_i(x) ∝ A_{i-1}(x) · exp( q_i(x) · (m_i - q_i(A_{i-1})) / (2n) )`
+  with renormalization to fixed total `n`.
 
 If the renormalization total degenerates to zero, the updater returns the zero
 histogram. The privacy proof does not depend on non-degeneracy.
@@ -38,15 +41,16 @@ def realLinearQueryReal (q : Fin numBins → ℤ) (A : Fin numBins → NNReal) :
 def realScore (q : Fin numBins → ℤ) (A : Fin numBins → NNReal) (D : List (Fin numBins)) : ℤ :=
   |realLinearQuery q D - ⌊realLinearQueryReal q A⌋|
 
-def realMWUpdate (q : Fin numBins → ℤ) (m : ℤ) (A : Fin numBins → NNReal) :
+def realMWUpdate (n : ℕ) (q : Fin numBins → ℤ) (m : ℤ) (A : Fin numBins → NNReal) :
     Fin numBins → NNReal :=
-  let err : ℝ := (m : ℝ) - realLinearQueryReal q A
-  let unnorm : Fin numBins → ℝ := fun b => (A b : ℝ) * Real.exp ((q b : ℝ) * err / 2)
+  let nR : ℝ := (n : ℝ)
+  let err : ℝ := ((m : ℝ) - realLinearQueryReal q A) / (2 * nR)
+  let unnorm : Fin numBins → ℝ := fun b => (A b : ℝ) * Real.exp ((q b : ℝ) * err)
   let total : ℝ := ∑ b, unnorm b
-  fun b => Real.toNNReal (unnorm b / total)
+  fun b => Real.toNNReal (unnorm b * nR / total)
 
-def realInit (numBins : ℕ+) : Fin numBins → NNReal :=
-  fun _ => 1
+def realInit (n : ℕ) (numBins : ℕ+) : Fin numBins → NNReal :=
+  fun _ => Real.toNNReal ((n : ℝ) / (numBins.val : ℝ))
 
 theorem realLinearQuery_sens (q : Fin numBins → ℤ)
     (Hbound : ∀ b, |q b| ≤ (Δ : ℤ)) : sensitivity (realLinearQuery q) Δ := by
@@ -72,12 +76,12 @@ theorem realScore_sens (q : Fin numBins → ℤ) (A : Fin numBins → NNReal)
         realLinearQuery q l₁ - realLinearQuery q l₂ from by ring]
   exact hQ
 
-def realMWUpdater (q : Fin (n+1) → Fin numBins → ℤ)
+def realMWUpdater (nData : ℕ) (q : Fin (n+1) → Fin numBins → ℤ)
     (Hbound : ∀ i b, |q i b| ≤ (Δ : ℤ)) :
-    SyntheticUpdater (Fin numBins) n Δ (Fin numBins → NNReal) (realInit numBins) where
+    SyntheticUpdater (Fin numBins) n Δ (Fin numBins → NNReal) (realInit nData numBins) where
   queries i := realLinearQuery (q i)
   scoreFn A i := realScore (q i) A
-  update A i m := realMWUpdate (q i) m A
+  update A i m := realMWUpdate nData (q i) m A
   queries_sens i := realLinearQuery_sens (q i) (Hbound i)
   scoreFn_sens A i := realScore_sens (q i) A (Hbound i)
 
