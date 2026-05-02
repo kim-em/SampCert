@@ -380,8 +380,8 @@ def hardt_test : IO Unit := do
   IO.println ""
 
 def main : IO Unit := do
-  -- sparseVector_tests
-  -- query_tests
-  -- statistical_tests
+  sparseVector_tests
+  query_tests
+  statistical_tests
   mwem_tests
   hardt_test
