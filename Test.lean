@@ -346,7 +346,7 @@ def hardt_test : IO Unit := do
   let ε₂ : ℕ+ := 1
   let A₀ : Fin hardtBins → Float := floatInit nData hardtBins
 
-  IO.println s!"[mwem-hardt] smaller scale version of Hardt 2012 1D range query experiment"
+  IO.println s!"[mwem-hardt] small-scale 1D range query experiment in the spirit of Hardt 2012, Section 3.1"
   IO.println s!"  domain: {(hardtBins : ℕ)} bins"
   IO.println s!"  workload: {hardtNQ} 1D range queries"
   IO.println s!"  data: {hardtData.length} synthetic records"
@@ -376,7 +376,7 @@ def hardt_test : IO Unit := do
     IO.println s!"#{trial} avg squared error per query: {avg_sq_err}"
 
   IO.println s!"mean over {nTrials} trials: {total_avg_sq_err / intToFloat (nTrials : ℤ)}"
-  IO.println s!"(Hardt 2012 reports ~10^2-10^3 for this regime)"
+  IO.println s!"(units and parameter scale differ from Hardt's Figure 2; not a direct numerical comparison)"
   IO.println ""
 
 def main : IO Unit := do
