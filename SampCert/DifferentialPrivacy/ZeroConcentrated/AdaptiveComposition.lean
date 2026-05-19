@@ -69,10 +69,10 @@ lemma privComposeAdaptive_renyi_bound {nq1 : List T → PMF U} {nq2 : U -> List 
     apply EReal.sub_lt_sub_of_lt_of_le
     · apply Hα'
     · simp
-    · exact ne_of_beq_false rfl
-    · exact ne_of_beq_false rfl
+    · decide
+    · decide
   have Hant : α.toEReal - 1 < ⊤ := by
-    exact Batteries.compareOfLessAndEq_eq_lt.mp rfl
+    exact_mod_cast EReal.coe_lt_top _
 
   apply ereal_smul_le_left (α.toEReal - 1) Hanz Hant
   rw [ereal_smul_distr_le_left _ Hanz Hant]
@@ -167,8 +167,7 @@ def privComposeAdaptive_AC (nq1 : Mechanism T U) (nq2 : U -> Mechanism T V) (Hac
     exact Hac1 l₁ l₂ HN u' A
   · right
     intro v'
-    simp_all
-    exact Hac2 u' l₁ l₂ HN v B
+    exact Hac2 u' l₁ l₂ HN v (B v')
 
 /--
 ``privComposeAdaptive`` satisfies zCDP
@@ -176,10 +175,11 @@ def privComposeAdaptive_AC (nq1 : Mechanism T U) (nq2 : U -> Mechanism T V) (Hac
 theorem privComposeAdaptive_zCDP (nq1 : List T → PMF U) {nq2 : U -> List T → PMF V} {ε₁ ε₂ : NNReal}
     (h : zCDP nq1 ε₁) (h' : ∀ u, zCDP (nq2 u) ε₂) :
     zCDP (privComposeAdaptive nq1 nq2) (ε₁ + ε₂) := by
-  simp [zCDP] at *
-  apply And.intro
-  · apply privComposeAdaptive_AC <;> aesop
-  · apply privComposeAdaptive_zCDPBound  <;> aesop
+  obtain ⟨HAC1, HB1⟩ := h
+  refine ⟨?_, ?_⟩
+  · exact privComposeAdaptive_AC nq1 nq2 HAC1 (fun u => (h' u).1)
+  · exact privComposeAdaptive_zCDPBound (NNReal.coe_nonneg _) (NNReal.coe_nonneg _)
+      HAC1 (fun u => (h' u).1) HB1 (fun u => (h' u).2)
 
 end AdaptiveComposition
 

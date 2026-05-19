@@ -84,7 +84,6 @@ this shows `(α - 1) * (ε² * α / 2) = (α - 1) * ε' + log(δ)`.
 lemma HαSpecial_algebraic {ε S D : ℝ} (Hε : ε ≠ 0) (HS : S * S = 2 * D) :
     ε⁻¹ * S * (2⁻¹ * ε ^ 2 * (ε⁻¹ * S + 1)) =
     ε⁻¹ * S * (ε ^ 2 / 2 + ε * S) + (-D) := by
-  have Hε2 : ε ^ 2 ≠ 0 := pow_ne_zero 2 Hε
   field_simp
   nlinarith [sq_nonneg ε, sq_nonneg S]
 
@@ -172,46 +171,16 @@ lemma ApproximateDP_renyi_pointwise_eq {V : Type*} (p q : PMF V)
 lemma ApproximateDP_ε'_nonneg (ε : ℝ) (Hε : 0 ≤ ε) (δ : NNReal)
     (Hδ0 : 0 < (δ : ℝ)) (Hδ1 : (δ : ℝ) < 1) :
     0 ≤ ε^2/2 + ε * (2 * Real.log (1/δ))^(1/2 : ℝ) := by
-  apply add_nonneg
-  · apply div_nonneg
-    · apply sq_nonneg
-    · simp
-  · apply mul_nonneg
-    · exact Hε
-    · apply Real.rpow_nonneg
-      apply mul_nonneg
-      · simp
-      · apply Real.log_nonneg
-        apply one_le_one_div Hδ0
-        exact le_of_lt Hδ1
+  have hlog : 0 ≤ Real.log (1/(δ:ℝ)) := Real.log_nonneg (one_le_one_div Hδ0 Hδ1.le)
+  positivity
 
 lemma ApproximateDP_α_gt_one (ε : ℝ) (Hε_pos : 0 < ε) (δ : NNReal)
     (Hδ0 : 0 < (δ : ℝ)) (Hδ1 : (δ : ℝ) < 1) :
     1 < (1 / ε) * (2 * Real.log (1 / δ))^(1/2 : ℝ) + 1 := by
-  conv =>
-    lhs
-    rw [<- zero_add 1]
-  apply (add_lt_add_iff_right 1).mpr
-  conv =>
-    lhs
-    rw [<- mul_zero 0]
-  apply mul_lt_mul_of_nonneg_of_pos
-  · apply one_div_pos.mpr
-    exact Hε_pos
-  · apply Real.rpow_nonneg
-    apply mul_nonneg
-    · simp
-    · apply Real.log_nonneg
-      apply one_le_one_div Hδ0
-      exact le_of_lt Hδ1
-  · simp
-  · apply Real.rpow_pos_of_pos
-    apply mul_pos
-    · simp
-    · apply Real.log_pos
-      apply one_lt_one_div
-      · apply Hδ0
-      · exact Hδ1
+  have hlog : 0 < Real.log (1/(δ:ℝ)) := Real.log_pos (one_lt_one_div Hδ0 Hδ1)
+  have hε : 0 < (1:ℝ)/ε := one_div_pos.mpr Hε_pos
+  have hrpow : 0 < (2 * Real.log (1/(δ:ℝ))) ^ ((1:ℝ)/2) := Real.rpow_pos_of_pos (by linarith) _
+  nlinarith
 
 lemma ApproximateDP_α_toEReal_sub_one_pos (ε : ℝ) (Hε_pos : 0 < ε) (δ : NNReal)
     (Hδ0 : 0 < (δ : ℝ)) (Hδ1 : (δ : ℝ) < 1) :
@@ -220,20 +189,13 @@ lemma ApproximateDP_α_toEReal_sub_one_pos (ε : ℝ) (Hε_pos : 0 < ε) (δ : N
   simp only [one_div, EReal.coe_mul, EReal.coe_one]
   rw [add_sub_assoc]
   have HZ : (1 - 1 : EReal) = 0 := by
-    rw [← EReal.coe_one]
-    rw [← EReal.coe_sub]
-    simp
+    rw [← EReal.coe_one, ← EReal.coe_sub]; simp
   rw [HZ]
   simp only [add_zero, gt_iff_lt]
   apply EReal.mul_pos
-  · apply EReal.coe_pos.mpr
-    exact inv_pos_of_pos Hε_pos
-  · apply EReal.coe_pos.mpr
-    apply Real.rpow_pos_of_pos
-    apply mul_pos
-    · simp
-    · apply Real.log_pos
-      exact (one_lt_inv₀ Hδ0).mpr Hδ1
+  · exact_mod_cast inv_pos_of_pos Hε_pos
+  · exact_mod_cast Real.rpow_pos_of_pos
+      (mul_pos (by norm_num) (Real.log_pos ((one_lt_inv₀ Hδ0).mpr Hδ1))) _
 
 lemma ApproximateDP_HαSpecial_bound (ε : ℝ) (Hε_pos : 0 < ε) (δ : NNReal)
     (Hδ0 : 0 < (δ : ℝ)) (Hδ1 : (δ : ℝ) < 1)
@@ -322,12 +284,8 @@ lemma ApproximateDP_HDP_bound {U : Type*} (p q : PMF U) (Hac : AbsCts p q)
   rw [<- ENNReal.tsum_mul_left]
   apply ENNReal.tsum_le_tsum
   intro u
-  cases (Classical.em ((q u = 0)))
-  · have Hpu : p u = 0 := by
-      rename_i h
-      exact Hac u h
-    simp_all
-  rename_i hnz
+  rcases Classical.em (q u = 0) with hqz | hnz
+  · rw [Hac u hqz, hqz]; simp
   conv =>
     congr
     · rw [mul_comm]
@@ -343,15 +301,21 @@ lemma ApproximateDP_HDP_bound {U : Type*} (p q : PMF U) (Hac : AbsCts p q)
   apply ENNReal.eexp_mono_lt.mp at H
   simp only [ENNReal.elog_eexp] at H
   rw [mul_comm]
-  cases (Classical.em (DFunLike.coe q u = ⊤))
-  · simp_all
-  rename_i Hnt
+  rcases Classical.em (DFunLike.coe q u = ⊤) with hqt | Hnt
+  · rw [hqt]; simp [Real.exp_pos]
   apply (ENNReal.div_le_iff hnz Hnt).mp
   simp at H
   rw [max_eq_left ?G5] at H
   case G5 => linarith
   exact le_of_lt H
 
+/--
+The zCDP Renyi divergence bound, recast as a tsum-form bound on
+`∑ m₁ u · (m₁ u / m₂ u)^(α-1)`.  Step 1: rewrite the summand into the symmetric
+`m₁ u ^ α · m₂ u ^ (1-α)` form via `ApproximateDP_renyi_pointwise_eq`.  Step 2: this sum is
+`eexp((α-1)·RenyiDivergence m₁ m₂ α)` by definition.  Step 3: the hypothesis bounds that, and
+EReal/ENNReal coercion bookkeeping completes the proof.
+-/
 lemma ApproximateDP_renyi_tsum_le [Countable U] (m₁ m₂ : PMF U)
     (Hm12 : AbsCts m₁ m₂) (Hm21 : AbsCts m₂ m₁)
     (ε : ℝ) (Hε : 0 ≤ ε) (α : ℝ) (Hα : 1 < α) (Hα' : 0 < α.toEReal - 1)
@@ -597,10 +561,10 @@ def ε (ε' : NNReal) (δ : NNReal) : NNReal := Real.toNNReal (-D δ + discrim (
 
 lemma eqε (ε' δ : NNReal) (H0 : 0 < δ) (H1 : δ < 1) : ε' = ((ε ε' δ)^2) / (2 : NNReal) + ε ε' δ * D δ := by
   suffices (((1 : ℝ) / (2 : ℝ)) * (ε ε' δ) * (ε ε' δ) + D δ * ε ε' δ + (- ε')) = 0 by
-    simp_all
     rw [add_neg_eq_zero] at this
     rw [<- this]
-    ring_nf
+    push_cast
+    ring
 
   have Hle : 0 < D δ ^ 2 + 4 * (OfNat.ofNat 2)⁻¹ * ε' := by
     apply Right.add_pos_of_pos_of_nonneg
@@ -663,7 +627,7 @@ lemma zCDP_ApproximateDP [Countable U] {m : Mechanism T U} :
   case G1 => exact NNReal.zero_le_coe
   rw [zCDP_of_adp_def.eqε ε' δ Hδ0 Hδ1]
   unfold zCDP_of_adp_def.D
-  simp_all
+  exact_mod_cast X
 
 
 
@@ -1499,29 +1463,30 @@ lemma tanh_lt_id_nonneg {x : ℝ} (Hx : 0 ≤ x) : Real.tanh x ≤ x := by
 
 lemma lemma_step_3_aux_differentiable (x : ℝ) :
     Differentiable ℝ (fun z : ℝ => Real.tanh (x * z / 4) - Real.tanh (x / 2) * Real.tanh (z / 2)) := by
-  apply Differentiable.sub
-  · have Hfunc : (fun y : ℝ => Real.tanh (x * y / 4)) =
-                 ((fun (y : ℝ) => Real.tanh y) ∘ (fun (z : ℝ) => x * z / 4)) := by
-      rw [Function.comp_def]
-    rw [Hfunc]
-    apply Differentiable.comp
-    · exact Differentiable.differentiable_tanh
-    · apply Differentiable.mul_const
-      apply Differentiable.const_mul
-      exact differentiable_id
-  · apply Differentiable.const_mul
-    have Hfunc : (fun y : ℝ => Real.tanh (y / 2)) =
-                 ((fun (y : ℝ) => Real.tanh y) ∘ (fun (z : ℝ) => z / 2)) := by
-      rw [Function.comp_def]
-    rw [Hfunc]
-    apply Differentiable.comp
-    · exact Differentiable.differentiable_tanh
-    · apply Differentiable.mul_const
-      exact differentiable_id
+  have := @Differentiable.differentiable_tanh; fun_prop
 
 lemma lemma_step_3_aux_continuous (x : ℝ) :
     Continuous (fun z : ℝ => Real.tanh (x * z / 4) - Real.tanh (x / 2) * Real.tanh (z / 2)) :=
   (lemma_step_3_aux_differentiable x).continuous
+
+lemma lemma_step_3_cosh_bound (x z : ℝ) (Hx : x ≤ 2) (Hx' : 0 ≤ x) (Hz0 : 0 ≤ z) :
+    (x / 2) * (1 / Real.cosh (z / 2) ^ 2 * 2⁻¹) ≤ 1 / Real.cosh (x * z / 4) ^ 2 * (x / 4) := by
+  conv =>
+    enter [1]
+    rw [mul_comm, mul_assoc]
+    enter [2]
+    rw [mul_comm, <- division_def, div_div]
+  apply mul_le_mul
+  · apply (div_le_div_iff_of_pos_left _ _ _).mpr
+    · apply sq_le_sq'
+      · linarith [Real.cosh_pos (z/2), Real.cosh_pos (x*z/4)]
+      · apply Real.cosh_le_cosh.mpr
+        apply abs_le_abs <;> nlinarith
+    · norm_num
+    · exact sq_pos_of_pos (Real.cosh_pos _)
+    · exact sq_pos_of_pos (Real.cosh_pos _)
+  · apply Eq.le; congr 1; linarith
+  all_goals positivity
 
 lemma lemma_step_3_deriv_nonneg (x z : ℝ) (Hx : x ≤ 2) (Hx' : 0 ≤ x) (Hz0 : 0 ≤ z) :
     0 ≤ deriv (fun z => Real.tanh (x * z / 4) - Real.tanh (x / 2) * Real.tanh (z / 2)) z := by
@@ -1530,149 +1495,45 @@ lemma lemma_step_3_deriv_nonneg (x z : ℝ) (Hx : x ≤ 2) (Hx' : 0 ≤ x) (Hz0 
   have Heq : (fun z => Real.tanh (x * z / 4) - Real.tanh (x / 2) * Real.tanh (z / 2))
       = (fun z => Real.tanh (x * z / 4)) - (fun z => Real.tanh (x / 2) * Real.tanh (z / 2)) := by
     funext; simp
-  rw [Heq]
-  rw [deriv_sub ?G1 ?G2]
-  case G1 =>
-    apply Differentiable.differentiableAt
-    rw [Hfunc_xz4]
-    apply Differentiable.comp
-    · apply Differentiable.differentiable_tanh
-    · apply Differentiable.mul_const
-      apply Differentiable.const_mul
-      apply differentiable_id
-  case G2 =>
-    apply Differentiable.differentiableAt
-    apply Differentiable.const_mul
-    rw [Hfunc_z2]
-    apply Differentiable.comp
-    · apply Differentiable.differentiable_tanh
-    · apply Differentiable.mul_const
-      apply differentiable_id
+  have htanh := @Differentiable.differentiable_tanh
+  rw [Heq, deriv_sub (by fun_prop) (by fun_prop)]
   rw [sub_nonneg]
   simp
-  rw [Hfunc_xz4]
-  rw [Hfunc_z2]
-  rw [deriv_comp _ ?G1 ?G2]
-  case G1 =>
-    apply Differentiable.differentiableAt
-    apply Differentiable.differentiable_tanh
-  case G2 =>
-    apply Differentiable.differentiableAt
-    apply Differentiable.mul_const
-    apply differentiable_id
+  rw [Hfunc_xz4, Hfunc_z2]
+  rw [deriv_comp _ (by fun_prop) (by fun_prop)]
   simp
-  rw [deriv_comp _ ?G1 ?G2]
-  case G1 =>
-    apply Differentiable.differentiableAt
-    apply Differentiable.differentiable_tanh
-  case G2 =>
-    apply Differentiable.differentiableAt
-    apply Differentiable.mul_const
-    apply Differentiable.const_mul
-    apply differentiable_id
+  rw [deriv_comp _ (by fun_prop) (by fun_prop)]
   simp
-  rw [deriv_const_mul _ ?G1]
-  case G1 =>
-    apply Differentiable.differentiableAt
-    apply differentiable_id
+  rw [deriv_const_mul _ (by fun_prop)]
   simp
   rw [deriv.deriv_tanh]
   rw [deriv.deriv_tanh]
-  suffices ((x / 2) * (1 / Real.cosh (z / 2) ^ 2 * 2⁻¹) ≤ 1 / Real.cosh (x * z / 4) ^ 2 * (x / 4)) by
-    apply (le_trans _ this)
-    apply mul_le_mul
-    · apply tanh_lt_id_nonneg
-      linarith
-    · apply Eq.le
-      rfl
-    · apply mul_nonneg
-      · apply div_nonneg
-        · simp
-        · apply sq_nonneg
-      · simp
-    · linarith
-  conv =>
-    enter [1]
-    rw [mul_comm]
-    rw [mul_assoc]
-    enter [2]
-    rw [mul_comm]
-    rw [<- division_def]
-    rw [div_div]
-  apply mul_le_mul
-  · apply (div_le_div_iff_of_pos_left _ _ _).mpr
-    · apply sq_le_sq'
-      · apply (@le_trans _ _ _ 0)
-        · apply neg_nonneg.mp
-          simp
-          apply (LT.lt.le (Real.cosh_pos _))
-        · apply (LT.lt.le (Real.cosh_pos _))
-      · apply Real.cosh_le_cosh.mpr
-        apply abs_le_abs
-        · apply (div_le_div_iff₀ (by simp) (by simp)).mpr
-          rw [mul_assoc]
-          rw [mul_comm]
-          rw [mul_assoc]
-          apply mul_le_mul <;> linarith
-        · apply (@le_trans _ _ _ 0)
-          · apply neg_nonneg.mp
-            simp
-            apply div_nonneg
-            · apply mul_nonneg
-              · linarith
-              · linarith
-            · simp
-          · linarith
-    · simp
-    · apply sq_pos_of_pos
-      apply Real.cosh_pos
-    · apply sq_pos_of_pos
-      apply Real.cosh_pos
-  · apply Eq.le
-    congr
-    linarith
-  · apply div_nonneg <;> linarith
-  · apply div_nonneg
-    · linarith
-    apply sq_nonneg
+  apply le_trans _ (lemma_step_3_cosh_bound x z Hx Hx' Hz0)
+  apply mul_le_mul (tanh_lt_id_nonneg (by linarith)) le_rfl
+  · positivity
+  · linarith
 
-lemma lemma_step_3 (Hy : 0 ≤ y) (Hyx : y < x) (Hx : x ≤ 2) : Real.tanh (x / 2) * Real.tanh (y / 2) ≤ Real.tanh (x * y / 4) := by
-  let f (z : ℝ) :=  Real.tanh (x * z / 4) - Real.tanh (x / 2) * Real.tanh (z / 2)
-  suffices 0 ≤ f y by
-    dsimp [f] at this
-    linarith
+lemma lemma_step_3 (Hy : 0 ≤ y) (Hyx : y < x) (Hx : x ≤ 2) :
+    Real.tanh (x / 2) * Real.tanh (y / 2) ≤ Real.tanh (x * y / 4) := by
+  let f (z : ℝ) := Real.tanh (x * z / 4) - Real.tanh (x / 2) * Real.tanh (z / 2)
+  suffices 0 ≤ f y by dsimp [f] at this; linarith
   suffices 0 * (y - 0) ≤ f y - f 0 by
-    dsimp [f] at this
-    simp at this
-    dsimp [f]
-    simp
-    trivial
-  have Hdiff : DifferentiableOn ℝ f (interior (Set.Icc 0 2)) :=
-    (lemma_step_3_aux_differentiable x).differentiableOn
-  have Hcts : ContinuousOn f (Set.Icc 0 2) :=
-    (lemma_step_3_aux_continuous x).continuousOn
-
+    dsimp [f] at this; simp [f] at this ⊢; linarith
   apply Convex.mul_sub_le_image_sub_of_le_deriv (convex_Icc 0 2)
-  · trivial
-  · trivial
+    (lemma_step_3_aux_continuous x).continuousOn
+    (lemma_step_3_aux_differentiable x).differentiableOn
+  · intro z Hz
+    simp only [interior_Icc, Set.mem_Ioo] at Hz
+    exact lemma_step_3_deriv_nonneg x z Hx (by linarith) Hz.1.le
   · simp
-    intros z Hz0 _
-    exact lemma_step_3_deriv_nonneg x z Hx (by linarith) (le_of_lt Hz0)
-  · simp
-  · simp
-    apply And.intro <;> linarith
+  · exact ⟨Hy, by linarith⟩
   · linarith
 
 
 lemma sinh_inequality (Hy : 0 ≤ y) (Hyx : y < x) (Hx : x ≤ 2) :
     (Real.sinh x - Real.sinh y) / Real.sinh (x - y) ≤ Real.exp (x * y / 2) := by
-  -- Temp usage of hypothesis so Lean doesn't freak out
-  have _ := Hy
-  have _ := Hx
   rw [lemma_step_1 _ _ Hyx]
-  apply (lemma_step_2 _ _ Hy Hyx)
-  unfold t
-  apply lemma_step_3 _ _ Hy Hyx Hx
+  exact lemma_step_2 _ _ Hy Hyx (lemma_step_3 _ _ Hy Hyx Hx)
 
 
 end sinh_inequality
@@ -1968,8 +1829,7 @@ lemma ofDP_bound (ε : NNReal) (q' : List T -> PMF U) (H : SLang.PureDP q' ε) :
   -- Rewrite to A
   -- Next step won't work with ε=0, must separate the case.
   obtain rfl | Hε' := Classical.em (ε = 0)
-  · -- Follows from the DP bound
-    simp_all
+  · simp_all
     rw [SLang.PureDP] at H
     apply SLang.event_to_singleton at H
     rw [SLang.DP_singleton] at H
