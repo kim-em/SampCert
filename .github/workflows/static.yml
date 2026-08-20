@@ -32,11 +32,11 @@ jobs:
       - uses: leanprover/lean-action@v1
         with:
           test: false
-          build-args: "-R -Kwerror -Kenv=doc" # IDK if these are necessary?
+          build-args: "-Kwerror"
           use-mathlib-cache: true
       - name: build docs
         run: |
-          lake build -R -Kwerror -Kenv=doc SampCert:docs
+          lake build -Kwerror SampCert:docs
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

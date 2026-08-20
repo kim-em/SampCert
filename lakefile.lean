@@ -4,12 +4,11 @@ open Lake DSL System
 package «sampcert» where
   testDriver := "test"
 
+require «doc-gen4» from git
+  "https://github.com/leanprover/doc-gen4" @ "v4.29.0"
+
 require mathlib from git
   "https://github.com/leanprover-community/mathlib4.git" @ "v4.29.0"
-
--- From doc-gen4
-meta if get_config? env = some "doc" then
-require «doc-gen4» from git "https://github.com/leanprover/doc-gen4" @ "main"
 
 target ffi.o (pkg : NPackage __name__) : FilePath := do
   let oFile := pkg.buildDir / "ffi.o"
