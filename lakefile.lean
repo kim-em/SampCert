@@ -4,8 +4,6 @@ open Lake DSL System
 package «sampcert» where
   testDriver := "test"
 
--- From doc-gen4
-meta if get_config? env = some "doc" then
 require «doc-gen4» from git
   "https://github.com/leanprover/doc-gen4" @ "v4.29.0"
 
